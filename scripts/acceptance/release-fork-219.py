@@ -102,23 +102,31 @@ def commit_source():
 
 
 def package():
-    source=json.loads((REPORT/'SOURCE.json').read_text())['commit']
-    assert git('rev-parse','HEAD').decode().strip()==source
+    source_info=json.loads((REPORT/'SOURCE.json').read_text())
+    source=git('rev-parse','HEAD').decode().strip()
+    if source!=source_info['commit']:
+        subprocess.run(['git','merge-base','--is-ancestor',source_info['commit'],source],cwd=ROOT,check=True)
+        changed=git('diff','--name-only',source_info['commit'],source).decode().splitlines()
+        assert all(n.startswith(('scripts/','docs/')) for n in changed),'Product source changed; rebuild required'
+        source_info.update(previousCommit=source_info['commit'],commit=source)
+        write(REPORT/'SOURCE.json',source_info)
     assert not git('diff','--name-only','HEAD').strip(),'Source changed after commit'
     assert 'VEYRA_DISPLAY_VERSION:STRING=2.1.9\n' in (BUILD/'CMakeCache.txt').read_text()
     app=OUT/'Veyra-2.1.9-win64-portable'
-    app.mkdir(parents=True,exist_ok=False)
+    assert not (OUT/'Veyra-2.1.9-win64-portable.zip').exists()
+    assert not (REPORT/'PACKAGE.json').exists()
+    app.mkdir(parents=True,exist_ok=True)
     donor=ART/'releases/slinky-219-20261115/Veyra-2.1.9-Slinky-build-win64-portable'
     donor_manifest=json.loads((donor/'package-manifest.json').read_text())
     assert not donor_manifest['anrRuntimeIncluded']
     for row in donor_manifest['files']:
         name=row['path']
         assert sha(donor/name)==row['sha256'],name
-        if name.startswith(('docs/','assets/','qml/','shaders/','i18n/')) or name.endswith('.cmd') or name in (
+        if name.startswith(('docs/','assets/','qml/Veyra/','shaders/','i18n/')) or name.endswith('.cmd') or name in (
             'README.md','README_EN.md','README_CN.md','THIRD_PARTY_NOTICES.md','RELEASE_NOTES.md','ANR-README.txt','Slinky build README.txt','veyra_qml_ui.exe'):continue
         target=app/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(donor/name,target)
     for name in ('qml','shaders'):
-        shutil.copytree(BUILD/name,app/name)
+        shutil.copytree(BUILD/name,app/name,dirs_exist_ok=True)
     tracked=git('ls-tree','-r','--name-only','HEAD','docs','assets','i18n').decode().splitlines()
     for name in tracked:
         target=app/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ROOT/name,target)
@@ -158,9 +166,14 @@ Item {
     env.update(PATH=f'{app};{windows/"System32"};{windows}',TEMP=str(temp),TMP=str(temp),
         QML_DISK_CACHE_PATH=str(temp/'qmlcache'),VEYRA_LOG_FILE=str(REPORT/'release-engine.log'))
     def run(label,extra):
+        log=REPORT/(label+'.log')
+        if log.exists():
+            retained=REPORT/(label+'-previous-attempt.log')
+            assert not retained.exists(),'Preserve existing attempts before another retry'
+            shutil.copy2(log,retained)
         result=subprocess.run([str(app/'veyra_qml_ui.exe'),'--data-dir',str(REPORT/(label+'-profile')),
             '--page','pro','--exit-after','6000',*extra],cwd=app,env=env,capture_output=True,timeout=45)
-        (REPORT/(label+'.log')).write_bytes(result.stdout+result.stderr)
+        log.write_bytes(result.stdout+result.stderr)
         assert result.returncode==0,label
         return result.stdout+result.stderr
     try:
