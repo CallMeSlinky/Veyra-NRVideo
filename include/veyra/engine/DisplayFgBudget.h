@@ -31,10 +31,12 @@ inline constexpr double kDisplayFgFillRatio=0.97;
 constexpr bool displayFgMultiplierSelectable(FrameGenerationBackend backend,unsigned multiplier){
     switch(backend){
     case FrameGenerationBackend::Dlss: return multiplier==2||multiplier==3||multiplier==4||multiplier==6;
+    case FrameGenerationBackend::Anr: return multiplier==2||multiplier==3||multiplier==4||multiplier==6;
     case FrameGenerationBackend::XeSS: return multiplier>=2&&multiplier<=4;
     case FrameGenerationBackend::Vfg: return multiplier>=2&&multiplier<=8;
     case FrameGenerationBackend::Fsr:
-    case FrameGenerationBackend::Fsr4: return multiplier==2;
+    case FrameGenerationBackend::Fsr4:
+    case FrameGenerationBackend::AmdFrc: return multiplier==2;
     }
     return false;
 }

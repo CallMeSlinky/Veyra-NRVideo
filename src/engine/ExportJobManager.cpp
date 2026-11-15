@@ -34,13 +34,15 @@ struct Shared {
     // 12: SR prescale/output fields change the shared settings layout.
     // 13: independent second SR parameters. 14: srOutput (the supersample
     // shrink) is honoured again; a version 13 worker would silently ignore it.
-    static constexpr DWORD kVersion=14;
+    // 15: final exclusion mask and independent output-control node payloads.
+    // 16: explicit H.264/HEVC/AV1 codec selection.
+    static constexpr DWORD kVersion=16;
     DWORD signature=magic,version=kVersion,bytes=sizeof(Shared);
     EnhancementSettings settings;
     EffectChain chain;
     wchar_t input[32768]{},output[32768]{},temporary[32768]{};
     ExportMediaOptions media;
-    unsigned hevc=0,maxFrames=0;
+    unsigned hevc=0,maxFrames=0,codec=0;
     int audioStreamIndex=-1;
     double trimStartSeconds=0.0,trimEndSeconds=0.0;
     uint32_t rateControl=uint32_t(sink::ExportRateControl::Cq);
@@ -80,7 +82,7 @@ struct ExportJobManager::Impl {
     // Time spent paused is not encoding time: the estimate left it in, so a paused
     // export's remaining time kept growing (field report 2026-10-02).
     ULONGLONG pausedAt=0,pausedTotal=0;
-    struct Request { std::wstring input,output; EnhancementSettings settings; bool hevc=false; unsigned maxFrames=0; int audioStreamIndex=-1; double trimStart=0,trimEnd=0; sink::ExportRateControl rateControl=sink::ExportRateControl::Cq; ExportMediaOptions media; };
+    struct Request { std::wstring input,output; EnhancementSettings settings; bool hevc=false; unsigned maxFrames=0; int audioStreamIndex=-1; double trimStart=0,trimEnd=0; sink::ExportRateControl rateControl=sink::ExportRateControl::Cq; ExportMediaOptions media; sink::VideoCodec codec=sink::VideoCodec::H264; };
     // The running job, for relaunching after a GPU reset, and the parts it has written.
     Request current;
     std::vector<std::pair<std::wstring,double>> parts;
@@ -93,7 +95,7 @@ struct ExportJobManager::Impl {
         while(!queue.empty()){
             auto next=std::move(queue.front());queue.pop_front();
             launchingQueued=true;
-            const bool started=owner.start(next.input,next.output,next.settings,next.hevc,next.maxFrames,next.audioStreamIndex,next.trimStart,next.trimEnd,next.rateControl);
+            const bool started=owner.start(next.input,next.output,next.settings,next.hevc,next.maxFrames,next.audioStreamIndex,next.trimStart,next.trimEnd,next.rateControl,{},next.codec);
             launchingQueued=false;
             if(started)return true;
             ++queueFailures;
@@ -117,19 +119,20 @@ ExportJobManager::~ExportJobManager(){
     }
     p_->clear();
 }
-bool ExportJobManager::start(const std::wstring& input,const std::wstring& output,EnhancementSettings settings,bool hevc,unsigned maxFrames,int audioStreamIndex,double trimStartSeconds,double trimEndSeconds,sink::ExportRateControl rateControl,ExportMediaOptions media){
+bool ExportJobManager::start(const std::wstring& input,const std::wstring& output,EnhancementSettings settings,bool hevc,unsigned maxFrames,int audioStreamIndex,double trimStartSeconds,double trimEndSeconds,sink::ExportRateControl rateControl,ExportMediaOptions media,sink::VideoCodec codec){
     // Busy means a launched worker not yet collected. Not poll(): polling here
     // starts the next queued item, which made a queued conflict look "busy"
     // and dropped it without a failure.
     if(p_->shared&&WaitForSingleObject(p_->process,0)==WAIT_OBJECT_0)poll();
     if(p_->shared){p_->snapshot.message=L"上一任务仍在回收，请等待取消完成";return false;}p_->clear();
     if(!p_->launchingQueued){p_->queueFailures=0;p_->lastQueueFailure.clear();}
-    if(!p_->resuming){p_->removeParts();p_->current={input,output,settings,hevc,maxFrames,audioStreamIndex,trimStartSeconds,trimEndSeconds,rateControl,media};}
+    if(!p_->resuming){p_->removeParts();p_->current={input,output,settings,hevc,maxFrames,audioStreamIndex,trimStartSeconds,trimEndSeconds,rateControl,media,codec};}
     const auto failures=p_->queueFailures;const auto lastFailure=p_->lastQueueFailure;
     p_->snapshot={};p_->snapshot.queueFailures=failures;p_->snapshot.lastQueueFailure=lastFailure;
     auto fail=[&](const wchar_t* message){const DWORD error=GetLastError();p_->clear();p_->snapshot.state=ExportState::Failed;p_->snapshot.message=message;std::wstring cleanup;if(!removeExportTemporaryFile(p_->snapshot.temporaryPath,cleanup))p_->snapshot.message+=L"\n"+cleanup;log::error("export-worker",std::format("launch failed error={}",error));return false;};
     if(input.empty()||output.empty()||input.size()>=32768||output.size()>=32768||!settings.validate().empty()||input.starts_with(L"capture:")||input.starts_with(L"capture2:"))return fail(L"请选择本地视频与有效导出设置");
     if(rateControl!=sink::ExportRateControl::Cq&&settings.exportBitrateMbps==0)return fail(L"CBR/VBR 需要指定码率；CQ 不使用码率");
+    if(!sink::validVideoCodec(codec))return fail(L"Invalid export codec");
     if(!media.valid())return fail(L"导出封装或轨道设置无效");
     if(std::filesystem::exists(output))return fail(L"输出文件已存在，请选择新文件名");
     std::wstring reserveError;
@@ -146,7 +149,7 @@ bool ExportJobManager::start(const std::wstring& input,const std::wstring& outpu
     // Auto becomes a fixed offline size; lmxxf retains its real input budget.
     // Source/encoder size is unchanged.
     s.chain=toChain(s.settings);fromChain(s.chain,s.settings);
-    s.hevc=hevc;s.maxFrames=maxFrames;s.rateControl=uint32_t(rateControl);
+    s.codec=uint32_t(sink::selectedVideoCodec(codec,hevc));s.hevc=hevc;s.maxFrames=maxFrames;s.rateControl=uint32_t(rateControl);
     s.audioStreamIndex=audioStreamIndex;
     s.trimStartSeconds=trimStartSeconds;s.trimEndSeconds=trimEndSeconds;
     s.media=media;wcscpy_s(s.temporary,p_->snapshot.temporaryPath.c_str());
@@ -173,11 +176,11 @@ bool ExportJobManager::start(const std::wstring& input,const std::wstring& outpu
     p_->snapshot.workerLog=std::filesystem::absolute(runtime::logsDirectory()/std::format("export-worker-{}.log",pi.dwProcessId)).wstring();
     log::info("export-worker",std::format("started jobId={} pid={} frozenRevision={} nrRuntime={} nrPolicy={} backend={} independentPlayback=true log={}",p_->snapshot.jobId,pi.dwProcessId,settings.revision,nrRuntimeName(s.settings.nrRuntime),int(s.settings.nrPolicy),frameGenerationBackendName(s.settings.frameGenerationBackend),std::filesystem::path(p_->snapshot.workerLog).string()));return true;
 }
-bool ExportJobManager::enqueue(const std::wstring& input,const std::wstring& output,EnhancementSettings settings,bool hevc,unsigned maxFrames,int audioStreamIndex,double trimStartSeconds,double trimEndSeconds,sink::ExportRateControl rateControl){
-    if(poll().active()||!p_->queue.empty()){p_->queue.push_back({input,output,settings,hevc,maxFrames,audioStreamIndex,trimStartSeconds,trimEndSeconds,rateControl});return true;}
+bool ExportJobManager::enqueue(const std::wstring& input,const std::wstring& output,EnhancementSettings settings,bool hevc,unsigned maxFrames,int audioStreamIndex,double trimStartSeconds,double trimEndSeconds,sink::ExportRateControl rateControl,sink::VideoCodec codec){
+    if(poll().active()||!p_->queue.empty()){p_->queue.push_back({input,output,settings,hevc,maxFrames,audioStreamIndex,trimStartSeconds,trimEndSeconds,rateControl,{},codec});return true;}
     // A new batch from idle starts with a clean failure record.
     p_->queueFailures=0;p_->lastQueueFailure.clear();
-    return start(input,output,settings,hevc,maxFrames,audioStreamIndex,trimStartSeconds,trimEndSeconds,rateControl);
+    return start(input,output,settings,hevc,maxFrames,audioStreamIndex,trimStartSeconds,trimEndSeconds,rateControl,{},codec);
 }
 void ExportJobManager::clearQueue(){p_->queue.clear();}
 size_t ExportJobManager::queuedCount() const{return p_->queue.size();}
@@ -212,7 +215,7 @@ ExportJobSnapshot ExportJobManager::poll(){
                 p_->clear();
                 auto next=p_->current;next.trimStart=resumeAt;
                 p_->resuming=true;
-                const bool started=start(next.input,next.output,next.settings,next.hevc,next.maxFrames,next.audioStreamIndex,next.trimStart,next.trimEnd,next.rateControl,next.media);
+                const bool started=start(next.input,next.output,next.settings,next.hevc,next.maxFrames,next.audioStreamIndex,next.trimStart,next.trimEnd,next.rateControl,next.media,next.codec);
                 p_->resuming=false;
                 if(started){
                     p_->snapshot.jobId=jobId;
@@ -270,6 +273,7 @@ int runExportWorker(HANDLE mapping){
         UnmapViewOfFile(s);CloseHandle(mapping);return 1;
     };
     if(s->signature!=magic||s->version!=Shared::kVersion||s->bytes!=sizeof(Shared))return reject(L"导出任务通信协议不匹配");
+    if(!sink::validVideoCodec(sink::VideoCodec(s->codec)))return reject(L"Invalid export codec");
     if(const auto error=s->settings.validate();!error.empty()){
         log::error("export-worker",std::format("invalid frozen settings: {}",error));
         return reject(L"导出任务的增强参数无效，请查看任务日志中的具体参数错误");
@@ -297,7 +301,7 @@ int runExportWorker(HANDLE mapping){
     for(unsigned i=0;i<s->priorCount;++i){s->priorPaths[i][2047]=0;prior.emplace_back(s->priorPaths[i],s->priorOrigins[i]);}
     ExportResume resume;
     bool ok=false;try{ok=exportVideo(s->input,s->output,options,s->hevc!=0,cancel,[&](double p,const std::wstring& message){if(InterlockedCompareExchange(&s->messageLock,1,0)==0){wcsncpy_s(s->message,message.c_str(),_TRUNCATE);InterlockedExchange(&s->messageLock,0);}
-InterlockedExchange(&s->progress,LONG(std::clamp(p,0.0,.999)*10000));if(p>=.99)InterlockedExchange(&s->state,LONG(ExportState::Finishing));},s->maxFrames,frameBoundary,[&](const ExportCounts& count){InterlockedExchange64(&s->sourceFrames,count.source);InterlockedExchange64(&s->generated,count.generated);InterlockedExchange64(&s->holds,count.holds);InterlockedExchange64(&s->encoded,count.encoded);},&resume,prior,s->resumeAttempt);}catch(...){log::error("export-worker","unhandled job exception");}
+InterlockedExchange(&s->progress,LONG(std::clamp(p,0.0,.999)*10000));if(p>=.99)InterlockedExchange(&s->state,LONG(ExportState::Finishing));},s->maxFrames,frameBoundary,[&](const ExportCounts& count){InterlockedExchange64(&s->sourceFrames,count.source);InterlockedExchange64(&s->generated,count.generated);InterlockedExchange64(&s->holds,count.holds);InterlockedExchange64(&s->encoded,count.encoded);},&resume,prior,s->resumeAttempt,sink::VideoCodec(s->codec));}catch(...){log::error("export-worker","unhandled job exception");}
     const bool resumable=!ok&&!cancel&&resume.resumable;
     if(resumable){s->resumeAtSeconds=resume.resumeAtSeconds;s->segmentOriginSeconds=resume.originSeconds;}
     done=true;monitor.join();InterlockedExchange(&s->state,LONG(ok?ExportState::Succeeded:cancel?ExportState::Cancelled:ExportState::Failed));

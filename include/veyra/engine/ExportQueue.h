@@ -14,6 +14,7 @@ struct ExportQueueItem {
     ExportMediaInfo info;
     EnhancementSettings frozen;
     bool hevc=false,explicitOutput=false;
+    sink::VideoCodec codec=sink::VideoCodec::H264;
     sink::ExportRateControl rate=sink::ExportRateControl::Cq;
 };
 // Sole order/state store for the QML queue. The existing manager remains the
@@ -28,7 +29,7 @@ public:
     bool setTrim(uint64_t id,double start,double end);
     bool setTracks(uint64_t id,bool audio,ExportTrackSelection selection);
     void setContainer(ExportContainer container);
-    bool start(const std::wstring& directory,EnhancementSettings settings,bool hevc,sink::ExportRateControl rate,std::wstring& error);
+    bool start(const std::wstring& directory,EnhancementSettings settings,bool hevc,sink::ExportRateControl rate,std::wstring& error,sink::VideoCodec codec=sink::VideoCodec::H264);
     void cancel();bool tick();
     bool busy()const{return running_||snapshot_.active();}
     bool needsTick()const;

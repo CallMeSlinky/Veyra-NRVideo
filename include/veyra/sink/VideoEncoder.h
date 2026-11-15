@@ -1,4 +1,5 @@
 #pragma once
+#include "veyra/sink/VideoCodec.h"
 
 // Product video encoder abstraction for the export job. Exactly one encoder is
 // active per export; the backend is chosen from adapter capability, never from
@@ -45,6 +46,7 @@ constexpr std::string_view encoderBackendName(EncoderBackend backend) {
 }
 
 struct EncoderConfig {
+    VideoCodec codec=VideoCodec::H264;
     bool hevc=false;
     unsigned fpsNum=0;
     unsigned fpsDen=1;

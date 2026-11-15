@@ -53,7 +53,7 @@ size_t ExportQueue::readyCount()const{
 bool ExportQueue::needsTick()const{
     return busy()||probe_.valid()||std::any_of(items_.begin(),items_.end(),[](const auto& i){return i.inspected!=i.revision;});
 }
-bool ExportQueue::start(const std::wstring& directory,EnhancementSettings settings,bool hevc,sink::ExportRateControl rate,std::wstring& error){
+bool ExportQueue::start(const std::wstring& directory,EnhancementSettings settings,bool hevc,sink::ExportRateControl rate,std::wstring& error,sink::VideoCodec codec){
     if(busy()){error=L"上一批任务仍在执行或回收";return false;}
     if(!readyCount()){error=L"没有待导出文件；失败项请先点击重试";return false;}
     std::error_code ec;
@@ -68,7 +68,7 @@ bool ExportQueue::start(const std::wstring& directory,EnhancementSettings settin
     for(const auto& item:items_)if(!item.output.empty())reserved.emplace_back(item.output);
     for(auto& item:items_){
         if(item.state!=ExportItemState::Ready&&item.state!=ExportItemState::Cancelled)continue;
-        item.batch=batch_;item.frozen=settings;item.hevc=hevc;item.rate=rate;
+        item.batch=batch_;item.frozen=settings;item.hevc=hevc;item.codec=codec;item.rate=rate;
         item.state=ExportItemState::Queued;item.progress=0;item.note.clear();
         if(item.output.empty()){
             const auto stem=std::filesystem::path(item.input).stem().wstring()+L"_veyra";
@@ -127,7 +127,7 @@ bool ExportQueue::tick(){
             }else{
                 std::error_code ec;const auto free=std::filesystem::space(directory_,ec);
                 if(ec||free.available<1024*1024){cancel();status_=L"输出目录不可用或磁盘空间不足，已停止本批调度";return true;}
-                const bool started=worker_.start(next->input,next->output,next->frozen,next->hevc,0,-1,next->start,next->end,next->rate,next->media);
+                const bool started=worker_.start(next->input,next->output,next->frozen,next->hevc,0,-1,next->start,next->end,next->rate,next->media,next->codec);
                 snapshot_=worker_.poll();next->job=snapshot_.jobId;next->note=snapshot_.message;
                 if(started){active_=next->id;next->state=ExportItemState::Running;status_=L"正在按队列顺序导出";}
                 else{next->state=ExportItemState::Failed;++failures_;}

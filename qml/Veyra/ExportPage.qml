@@ -247,7 +247,7 @@ VPage {
                 VGroup {
                     visible: root.exportKind === "video"
                     VRow { label: qsTr("封装"); VSeg { objectName: "export-container"; options: [{id: "0", label: "MP4"}, {id: "1", label: "MKV"}]; current: String(veyra.exportContainer); onPicked: id => veyra.exportContainer = Number(id) } }
-                    VRow { label: qsTr("视频编码"); VSeg { options: [{id: "0", label: "H.264"}, {id: "1", label: "HEVC"}]; current: veyra.exportHevc ? "1" : "0"; onPicked: id => veyra.exportHevc = id === "1" } }
+                    VRow { label: qsTr("视频编码"); VSeg { options: [{id: "0", label: "H.264"}, {id: "1", label: "H.265 / HEVC"}, {id: "2", label: "AV1"}]; current: String(veyra.exportCodec); onPicked: id => veyra.exportCodec = Number(id) } }
                     VRow {
                         label: qsTr("分辨率")
                         Choice {

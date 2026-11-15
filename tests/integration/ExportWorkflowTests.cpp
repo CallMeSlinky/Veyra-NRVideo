@@ -1,5 +1,9 @@
 #include "veyra/engine/ExportJobManager.h"
 #include "veyra/engine/ExportQueue.h"
+#include "veyra/engine/LiveRecorder.h"
+#include "veyra/gfx/D3D12DeviceContext.h"
+#include "veyra/gfx/CommandSlotRing.h"
+#include <wrl/client.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -19,6 +23,53 @@ void collected(const ExportJobSnapshot& s){
     HANDLE process=OpenProcess(SYNCHRONIZE,FALSE,s.workerPid);
     if(process){const auto state=WaitForSingleObject(process,0);CloseHandle(process);require(state==WAIT_OBJECT_0,"terminal published before process exit");}
 }
+// Exercise actual HDR recording/replay without a monitor or proprietary HDR
+// enhancement model: synthetic scRGB render target -> production P010 encoder.
+void recordHdr(const std::wstring& directory,veyra::sink::VideoCodec codec){
+    using namespace veyra;
+    using Microsoft::WRL::ComPtr;
+    std::filesystem::create_directories(directory);
+    gfx::D3D12DeviceContext ctx;gfx::CommandSlotRing ring;Status status;
+    require(ctx.initialize({},status),"HDR recording device");
+    require(ring.initialize(ctx.device(),ctx.directQueue(),ctx.fence(),ctx.fenceEvent(),4,status),"HDR recording ring");
+    ComPtr<ID3D12Resource> texture;ComPtr<ID3D12DescriptorHeap> rtvHeap;
+    D3D12_HEAP_PROPERTIES heap{};heap.Type=D3D12_HEAP_TYPE_DEFAULT;
+    D3D12_RESOURCE_DESC desc{};desc.Dimension=D3D12_RESOURCE_DIMENSION_TEXTURE2D;desc.Width=320;desc.Height=180;
+    desc.DepthOrArraySize=1;desc.MipLevels=1;desc.SampleDesc.Count=1;desc.Format=DXGI_FORMAT_R16G16B16A16_FLOAT;
+    desc.Flags=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    require(SUCCEEDED(ctx.device()->CreateCommittedResource(&heap,D3D12_HEAP_FLAG_NONE,&desc,D3D12_RESOURCE_STATE_COMMON,nullptr,IID_PPV_ARGS(&texture))),"HDR target");
+    D3D12_DESCRIPTOR_HEAP_DESC hd{};hd.Type=D3D12_DESCRIPTOR_HEAP_TYPE_RTV;hd.NumDescriptors=1;
+    require(SUCCEEDED(ctx.device()->CreateDescriptorHeap(&hd,IID_PPV_ARGS(&rtvHeap))),"HDR RTV heap");
+    const auto rtv=rtvHeap->GetCPUDescriptorHandleForHeapStart();ctx.device()->CreateRenderTargetView(texture.Get(),nullptr,rtv);
+    for(bool replayMode:{false,true}){
+    LiveRecorder recorder(replayMode);RecordingSettings settings;settings.directory=directory;settings.codec=codec;
+    settings.audio=false;settings.fpsLimit=30;settings.replaySeconds=15;
+    std::wstring error;require(recorder.start(settings,error),"HDR recording start");
+    if(replayMode)recorder.setSourcePlaying(true);
+    for(unsigned frame=0;frame<165;++frame){
+        uint32_t slot=0;auto* list=ring.acquireNext(slot,status);require(list!=nullptr,"HDR acquire");
+        D3D12_RESOURCE_BARRIER barrier{};barrier.Type=D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.pResource=texture.Get();barrier.Transition.Subresource=D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barrier.Transition.StateBefore=D3D12_RESOURCE_STATE_COMMON;barrier.Transition.StateAfter=D3D12_RESOURCE_STATE_RENDER_TARGET;
+        list->ResourceBarrier(1,&barrier);
+        const float color[4]={0.2f+float(frame%60)/15.0f,0.3f,0.1f,1.0f};list->ClearRenderTargetView(rtv,color,0,nullptr);
+        std::swap(barrier.Transition.StateBefore,barrier.Transition.StateAfter);list->ResourceBarrier(1,&barrier);
+        PresentCapture::Frame picture;picture.texture=texture.Get();picture.format=desc.Format;picture.width=320;picture.height=180;picture.hdrMode=1;
+        recorder.record(list,picture);require(ring.submitAndSignal(slot),"HDR submit");recorder.submitted(ctx.fence(),ring.lastSignaledValue());
+        require(ring.waitIdle(),"HDR fixture target reuse");Sleep(34);
+        if(recorder.status().failed)throw std::runtime_error("HDR encoder failed");
+    }
+    if(replayMode){
+        require(recorder.saveReplay(directory,error),"HDR replay save");
+        const auto deadline=GetTickCount64()+10000;
+        while(!recorder.status().saved&&!recorder.status().failed&&GetTickCount64()<deadline)Sleep(20);
+        require(recorder.status().saved>0&&!recorder.status().failed,"HDR replay result");
+    }
+    recorder.stop();recorder.waitIdle(10000);
+    require(!recorder.status().failed&&recorder.status().frames>90,"HDR recording result");
+    }
+
+}
 }
 int wmain(int argc,wchar_t** argv){
     const HRESULT com=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
@@ -30,11 +81,28 @@ int wmain(int argc,wchar_t** argv){
     bool passed=false;
     try{
         const std::wstring mode=argv[1],input=argv[2],output=argv[3];
+        if(mode.starts_with(L"record-hdr-")){
+            recordHdr(output,mode.ends_with(L"av1")?veyra::sink::VideoCodec::Av1:veyra::sink::VideoCodec::Hevc);
+            if(SUCCEEDED(com))CoUninitialize();return 0;
+        }
         ExportJobManager manager;EnhancementSettings settings;settings.nr=settings.sr=false;settings.multiplier=1;
         ExportMediaOptions media;
         media.container=mode.find(L"mkv")!=std::wstring::npos?ExportContainer::Matroska:ExportContainer::Mp4;
         media.audio.policy=ExportTrackPolicy::All;media.subtitles.policy=ExportTrackPolicy::All;
         const bool hevc=mode.find(L"hevc")!=std::wstring::npos;
+        const auto codec=mode.find(L"av1")!=std::wstring::npos?veyra::sink::VideoCodec::Av1:hevc?veyra::sink::VideoCodec::Hevc:veyra::sink::VideoCodec::H264;
+        if(mode.starts_with(L"codec-queue-")){
+            ExportQueue queue(manager);
+            const auto first=queue.add(input,output),second=queue.add(input,output+L".second.mp4");
+            require(queue.setTrim(first,0,5)&&queue.setTrim(second,0,5),"queue trims");
+            std::wstring error;
+            require(queue.start(std::filesystem::path(output).parent_path().wstring(),settings,false,veyra::sink::ExportRateControl::Cq,error,codec),"codec queue start");
+            const auto deadline=GetTickCount64()+90000;
+            while(queue.needsTick()&&GetTickCount64()<deadline){queue.tick();Sleep(10);}
+            require(!queue.busy()&&queue.successes()==2,"both codec queue jobs complete");
+            for(const auto& item:queue.items())require(item.codec==codec&&item.state==ExportItemState::Done,"queue retains frozen codec");
+            if(SUCCEEDED(com))CoUninitialize();return 0;
+        }
         const bool fsr=mode.find(L"fsr-")==0;
         const bool rejectXess=mode==L"reject-xess";
         // Supersampling: 1080p -> 8K -> 4K, or 1080p -> 4K -> a non-integer 2K shrink.
@@ -177,13 +245,13 @@ int wmain(int argc,wchar_t** argv){
             // "reject": the user picked every subtitle track by hand, so a track
             // the container cannot hold must fail the export. "skip": the default
             // "all tracks" policy leaves it out and says so in the result.
-            if(mode.find(L"reject")!=std::wstring::npos&&!rejectXess){
+            if(mode.find(L"reject")!=std::wstring::npos&&!rejectXess&&!mode.starts_with(L"codec-")){
                 std::atomic<bool> stop{false};const auto info=ExportStreams::probe(input,ExportMediaOptions{},0,0,stop);
                 media.subtitles.policy=ExportTrackPolicy::Selected;media.subtitles.count=0;
                 for(const auto& t:info.tracks)if(t.subtitle&&media.subtitles.count<media.subtitles.indices.size())media.subtitles.indices[media.subtitles.count++]=t.index;
                 require(media.subtitles.count>0,"reject source has no subtitle track");
             }
-            require(manager.start(input,output,settings,hevc,(srStage||dualSr)?4:0,-1,from,to,veyra::sink::ExportRateControl::Cq,media),"start refused");
+            require(manager.start(input,output,settings,hevc,(srStage||dualSr)?4:mode.starts_with(L"codec-")?150:0,-1,from,to,veyra::sink::ExportRateControl::Cq,media,codec),"start refused");
             auto s=finish(manager);collected(s);
             std::wcout<<L"state="<<int(s.state)<<L" encoded="<<s.encoded<<L" message="<<s.message<<L"\n";
             if(mode.find(L"reject")!=std::wstring::npos){require(s.state==ExportState::Failed,"incompatible source was not rejected");require(!std::filesystem::exists(output),"rejection produced final file");require(!s.message.empty(),"failure reason missing");}

@@ -27,8 +27,10 @@ extern "C" {
 }
 namespace veyra::engine {
 namespace { std::string utf8(const std::wstring& s){const int n=WideCharToMultiByte(CP_UTF8,0,s.data(),int(s.size()),nullptr,0,nullptr,nullptr);std::string r(n,0);WideCharToMultiByte(CP_UTF8,0,s.data(),int(s.size()),r.data(),n,nullptr,nullptr);return r;} }
-bool exportVideo(const std::wstring& input,const std::wstring& output,PlayerOptions options,bool hevc,std::atomic<bool>& cancel,const std::function<void(double,const std::wstring&)>& progress,unsigned maxFrames,const std::function<bool()>& frameBoundary,const std::function<void(const ExportCounts&)>& counts,ExportResume* resume,const ExportSegments& priorSegments,unsigned resumeAttempt){
+bool exportVideo(const std::wstring& input,const std::wstring& output,PlayerOptions options,bool hevc,std::atomic<bool>& cancel,const std::function<void(double,const std::wstring&)>& progress,unsigned maxFrames,const std::function<bool()>& frameBoundary,const std::function<void(const ExportCounts&)>& counts,ExportResume* resume,const ExportSegments& priorSegments,unsigned resumeAttempt,sink::VideoCodec codec){
     if(resume)*resume={};
+    codec=sink::selectedVideoCodec(codec,hevc);
+    if(!sink::validVideoCodec(codec)){progress(0,L"Invalid export codec");return false;}
     if(!std::isfinite(options.exportStartSeconds)||!std::isfinite(options.exportEndSeconds)||options.exportStartSeconds<0||options.exportEndSeconds<0||(options.exportEndSeconds>0&&options.exportEndSeconds<=options.exportStartSeconds)){progress(0,L"导出剪辑范围无效");return false;}
     if(std::filesystem::exists(output)){progress(0,L"目标文件已存在，请使用其他名称");return false;}
     if(cancel){progress(0,L"导出已取消");return false;}
@@ -157,15 +159,15 @@ bool exportVideo(const std::wstring& input,const std::wstring& output,PlayerOpti
         } else startGraph(false,1);
         if(!graphReady){if(failureReason.empty())failureReason=L"增强管线初始化失败，请查看诊断";break;}
         if(cancel)break;
-        if(gd.hdrOutput&&!hevc){hevc=true;fgNote+=fgNote.empty()?L"HDR 视频自动使用 HEVC Main10 编码":L"；HDR 视频自动使用 HEVC Main10 编码";}
+        if(gd.hdrOutput&&codec==sink::VideoCodec::H264){codec=sink::VideoCodec::Hevc;hevc=true;fgNote+=fgNote.empty()?L"HDR 视频自动使用 HEVC Main10 编码":L"；HDR 视频自动使用 HEVC Main10 编码";}
         if(!fgNote.empty())progress(0,fgNote);
         const AVRational rate=av_mul_q({rateNum,rateDen},{int(options.fg?options.fgMultiplier:1),1});
         constexpr AVRational mediaTimeBase{1,1000000};
         veyra::log::info("export-timeline",std::format("source-timed export nominal={}/{} encoder={}/{} fg={} backend={} note={} (no CFR preflight or output decode verification)",rateNum,rateDen,rate.num,rate.den,options.fg?options.fgMultiplier:1,frameGenerationBackendName(options.settings.frameGenerationBackend),utf8(fgNote)));
         if(avformat_alloc_output_context2(&mux,nullptr,options.exportMedia.container==ExportContainer::Matroska?"matroska":"mp4",utf8(partial).c_str())<0||!mux)break;
         videoStream=avformat_new_stream(mux,nullptr);if(!videoStream)break;videoStream->time_base=mediaTimeBase;videoStream->avg_frame_rate=rate;
-        auto* cp=videoStream->codecpar;cp->codec_type=AVMEDIA_TYPE_VIDEO;cp->codec_id=hevc?AV_CODEC_ID_HEVC:AV_CODEC_ID_H264;cp->width=gd.workWidth;cp->height=gd.workHeight;cp->format=AV_PIX_FMT_YUV420P;cp->color_range=AVCOL_RANGE_MPEG;cp->color_space=AVCOL_SPC_BT709;cp->color_primaries=AVCOL_PRI_BT709;cp->color_trc=AVCOL_TRC_IEC61966_2_1;
-        if(gd.hdrOutput){cp->format=AV_PIX_FMT_YUV420P10LE;cp->color_space=AVCOL_SPC_BT2020_NCL;cp->color_primaries=AVCOL_PRI_BT2020;cp->color_trc=AVCOL_TRC_SMPTE2084;cp->profile=AV_PROFILE_HEVC_MAIN_10;}
+        auto* cp=videoStream->codecpar;cp->codec_type=AVMEDIA_TYPE_VIDEO;cp->codec_id=codec==sink::VideoCodec::Av1?AV_CODEC_ID_AV1:codec==sink::VideoCodec::Hevc?AV_CODEC_ID_HEVC:AV_CODEC_ID_H264;cp->width=gd.workWidth;cp->height=gd.workHeight;cp->format=AV_PIX_FMT_YUV420P;cp->color_range=AVCOL_RANGE_MPEG;cp->color_space=AVCOL_SPC_BT709;cp->color_primaries=AVCOL_PRI_BT709;cp->color_trc=AVCOL_TRC_IEC61966_2_1;
+        if(gd.hdrOutput){cp->format=AV_PIX_FMT_YUV420P10LE;cp->color_space=AVCOL_SPC_BT2020_NCL;cp->color_primaries=AVCOL_PRI_BT2020;cp->color_trc=AVCOL_TRC_SMPTE2084;cp->profile=codec==sink::VideoCodec::Av1?AV_PROFILE_AV1_MAIN:AV_PROFILE_HEVC_MAIN_10;}
         // Plan v5.3: this exporter cannot recompute content light levels (that
         // needs a full pre-pass before the header is written), so the source
         // declaration is carried into the 'clli' box verbatim and the graded case
@@ -206,7 +208,7 @@ bool exportVideo(const std::wstring& input,const std::wstring& output,PlayerOpti
         };
         // Must drain before rate/writeAudioUntil/writer leave scope, including cancel/error.
         struct EncoderCloser {std::unique_ptr<sink::VideoEncoder>& encoder;~EncoderCloser(){encoder.reset();}} closer{encoder};
-        sink::EncoderConfig encoderConfig;encoderConfig.hevc=hevc;encoderConfig.fpsNum=unsigned(rate.num);encoderConfig.fpsDen=unsigned(rate.den);encoderConfig.bitrateMbps=options.settings.exportBitrateMbps;encoderConfig.rateControl=options.exportRateControl;
+        sink::EncoderConfig encoderConfig;encoderConfig.codec=codec;encoderConfig.hevc=codec==sink::VideoCodec::Hevc;encoderConfig.fpsNum=unsigned(rate.num);encoderConfig.fpsDen=unsigned(rate.den);encoderConfig.bitrateMbps=options.settings.exportBitrateMbps;encoderConfig.rateControl=options.exportRateControl;
         std::wstring encoderDetail;
         encoder=sink::openVideoEncoder(ctx,ring,graph,encoderConfig,writer,encoderDetail);
         if(!encoder){
@@ -216,7 +218,7 @@ bool exportVideo(const std::wstring& input,const std::wstring& output,PlayerOpti
             break;
         }
         encoderName=encoder->describe();
-        veyra::log::info("export",std::format("encoder={} codec={} rateControl={} bitrateMbps={} rate={}/{}",std::string(sink::encoderBackendName(encoder->backend())),hevc?"HEVC":"H264",std::string(sink::exportRateControlName(encoderConfig.rateControl)),encoderConfig.bitrateMbps,rate.num,rate.den));
+        veyra::log::info("export",std::format("encoder={} codec={} rateControl={} bitrateMbps={} rate={}/{}",std::string(sink::encoderBackendName(encoder->backend())),sink::videoCodecName(codec),std::string(sink::exportRateControlName(encoderConfig.rateControl)),encoderConfig.bitrateMbps,rate.num,rate.den));
         auto headers=encoder->headers();cp->extradata=static_cast<uint8_t*>(av_mallocz(headers.size()+AV_INPUT_BUFFER_PADDING_SIZE));if(!cp->extradata)break;memcpy(cp->extradata,headers.data(),headers.size());cp->extradata_size=int(headers.size());
         int muxResult=avio_open(&mux->pb,utf8(partial).c_str(),AVIO_FLAG_WRITE);
         if(muxResult<0){failAv(L"创建输出文件",muxResult);break;}

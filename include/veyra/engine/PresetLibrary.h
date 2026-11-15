@@ -36,11 +36,11 @@ struct PresetFlowSettings {
     bool amdHalfResolution = false;
     ContentRate content = ContentRate::Transport;
     static PresetFlowSettings capture(const EnhancementSettings& s) {
-        return {s.opticalFlowBackend, s.flow, s.amdFlowHalfResolution, s.content};
+        return {s.opticalFlowBackend, s.flow, s.amdFlowHalfResolution, currentContentRate(s.content)};
     }
     void apply(EnhancementSettings& s) const {
         s.opticalFlowBackend = backend; s.flow = quality;
-        s.amdFlowHalfResolution = amdHalfResolution; s.content = content;
+        s.amdFlowHalfResolution = amdHalfResolution; s.content = currentContentRate(content);
     }
     bool operator==(const PresetFlowSettings&) const = default;
 };
@@ -126,6 +126,8 @@ private:
     // original per-context cap.
     static bool parse(const std::string& data, std::vector<PresetEntry>& out, std::wstring& def, std::wstring& error,
                       bool* migrated = nullptr, bool preserveLegacy = false, int maxVersion = 0);
+    static bool parseCurrent(const std::string&, std::vector<PresetEntry>&, std::wstring&, std::wstring&,
+                             bool*, bool, int);
     std::string serialize() const;
     static std::string encodeEntries(const std::vector<PresetEntry>& entries, const std::wstring& defaultName, int minimumVersion = 1);
     void addBuiltins();

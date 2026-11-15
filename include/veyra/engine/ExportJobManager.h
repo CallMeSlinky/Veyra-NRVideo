@@ -25,8 +25,8 @@ struct ExportJobSnapshot {
 class ExportJobManager {
 public:
     ExportJobManager();~ExportJobManager();
-    bool start(const std::wstring&,const std::wstring&,EnhancementSettings,bool hevc,unsigned maxFrames=0,int audioStreamIndex=-1,double trimStartSeconds=0.0,double trimEndSeconds=0.0,sink::ExportRateControl rateControl=sink::ExportRateControl::Cq,ExportMediaOptions media={});
-    bool enqueue(const std::wstring&,const std::wstring&,EnhancementSettings,bool hevc,unsigned maxFrames=0,int audioStreamIndex=-1,double trimStartSeconds=0.0,double trimEndSeconds=0.0,sink::ExportRateControl rateControl=sink::ExportRateControl::Cq);
+    bool start(const std::wstring&,const std::wstring&,EnhancementSettings,bool hevc,unsigned maxFrames=0,int audioStreamIndex=-1,double trimStartSeconds=0.0,double trimEndSeconds=0.0,sink::ExportRateControl rateControl=sink::ExportRateControl::Cq,ExportMediaOptions media={},sink::VideoCodec codec=sink::VideoCodec::H264);
+    bool enqueue(const std::wstring&,const std::wstring&,EnhancementSettings,bool hevc,unsigned maxFrames=0,int audioStreamIndex=-1,double trimStartSeconds=0.0,double trimEndSeconds=0.0,sink::ExportRateControl rateControl=sink::ExportRateControl::Cq,sink::VideoCodec codec=sink::VideoCodec::H264);
     void clearQueue();
     size_t queuedCount() const;
     void cancel();void pause(bool);void watching(bool);

@@ -177,7 +177,8 @@ s.color.blackWhite=true;s.color.blackWhiteMix[2]=-33.5f;
 s.color.grading[1]={210.5f,45,-20};s.color.gradingBlending=62.5f;s.color.gradingBalance=-18;
 s.color.calibrationShadowTint=9.5f;s.color.calibrationHue[1]=-22;s.color.calibrationSaturation[2]=17.5f;
 ok=ok&&s.color.setLutName(L"film.cube");s.color.lutStrength=75;s.color.lutInputSpace=1;
-ok=ok&&a.put(L"test",s)&&a.setDefault(0)&&!a.put(L"test",s);PresetStore b(p);ok=ok&&b.load()&&b.defaultSettings()==s&&b.rename(0,L"renamed")&&b.defaultSettings()==s;
+ok=ok&&a.put(L"test",s)&&a.setDefault(0)&&!a.put(L"test",s);
+PresetStore b(p);ok=ok&&b.load()&&b.defaultSettings()==s&&b.rename(0,L"renamed")&&b.defaultSettings()==s;
 // Colour validation guards the same ranges the panel exposes.
 auto badGrading=s;badGrading.color.grading[2].hue=400;ok=ok&&!b.put(L"invalid grading hue",badGrading);
 auto badCurve=s;badCurve.color.curves[1].count=3;badCurve.color.curves[1].points[1]={0.6f,0.5f};badCurve.color.curves[1].points[2]={0.2f,0.7f};ok=ok&&!b.put(L"unsorted curve",badCurve);
@@ -212,7 +213,7 @@ ok=ok&&b.entries().size()==1&&b.defaultSettings()==s;
  ok=ok&&b.put(L"FSR 4 ML 2X",fsr4);PresetStore fsr4Reload(p);
  ok=ok&&fsr4Reload.load()&&fsr4Reload.entries().back().settings==fsr4&&b.erase(1);
  fsr4.multiplier=4;ok=ok&&!b.put(L"FSR 4 ML 4X rejected",fsr4);
- auto badBackend=s;badBackend.frameGenerationBackend=static_cast<FrameGenerationBackend>(5);ok=ok&&!b.put(L"invalid backend",badBackend);
+ auto badBackend=s;badBackend.frameGenerationBackend=static_cast<FrameGenerationBackend>(int(FrameGenerationBackend::Anr)+1);ok=ok&&!b.put(L"invalid backend",badBackend);
  auto dis=s;dis.opticalFlowBackend=OpticalFlowBackend::GpuDis;ok=ok&&b.put(L"GPU DIS",dis)&&b.save();PresetStore disReload(p);ok=ok&&disReload.load()&&disReload.entries().back().settings==dis&&b.erase(1);
  
  auto badFlow=s;badFlow.opticalFlowBackend=static_cast<OpticalFlowBackend>(3);ok=ok&&!b.put(L"invalid flow backend",badFlow);
@@ -355,5 +356,15 @@ ok=ok&&b.entries().size()==1&&b.defaultSettings()==s;
   pass=pass&&r.load()&&r.entries().size()==1&&r.entries()[0].settings==dual;
   std::ifstream h(path);std::string magic;int version=0;h>>magic>>version;pass=pass&&version==34;
   ok=ok&&pass;std::cout<<"dual SR schema34 roundtrip="<<pass<<'\n';
+ }
+ {
+  EnhancementSettings mask;mask.exclusion.enabled=true;mask.exclusion.featherPixels=23;
+  mask.protection.enabled=true;mask.protection.regions[1]={.2f,.3f,.7f,.8f,true};
+  mask.exclusion.regions[0]={.1f,.2f,.6f,.7f};mask.exclusion.regions[2]={.3f,.1f,.8f,.9f,true};
+  auto path=p;path+=L"-exclusion";PresetStore writer(path);
+  bool pass=writer.load()&&writer.put(L"mask",mask);PresetStore reader(path);
+  pass=pass&&reader.load()&&reader.entries().size()==1&&reader.entries()[0].settings==mask;
+  std::ifstream header(path);std::string magic;int version=0;header>>magic>>version;
+  pass=pass&&version==37;ok&=pass;std::cout<<"exclusion schema37 rectangle ellipse feather roundtrip="<<pass<<'\n';
  }
  std::cout<<"preset roundtrip, all fields, duplicate, rename-default, delete, validation, unknown schema, corrupt-preservation="<<ok<<'\n';return ok?0:1;}

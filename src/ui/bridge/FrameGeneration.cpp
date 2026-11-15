@@ -10,6 +10,8 @@ QString QmlPlayerBridge::fgBackendName() const {
     case engine::FrameGenerationBackend::Fsr:return QStringLiteral("fsr3");
     case engine::FrameGenerationBackend::Fsr4:return QStringLiteral("fsr4");
     case engine::FrameGenerationBackend::Vfg:return QStringLiteral("vfg");
+    case engine::FrameGenerationBackend::Anr:return QStringLiteral("anr");
+    case engine::FrameGenerationBackend::AmdFrc:return QStringLiteral("amdfrc");
     }
     return {};
 }
@@ -19,7 +21,9 @@ QVariantList QmlPlayerBridge::fgBackendChoices() const {
         QVariantMap{{"id","xess"},{"label",tr("Intel XeSS · 实验")}},
         QVariantMap{{"id","fsr3"},{"label",tr("FSR 3.1 · 2X")}},
         QVariantMap{{"id","fsr4"},{"label",tr("FSR 4 ML · RX 9000 · 实验")}},
-        QVariantMap{{"id","vfg"},{"label",tr("NVIDIA VFG · RTX 30（实验）/ 40 / 50")}}
+        QVariantMap{{"id","amdfrc"},{"label",tr("AMD FRC · 视频补帧 · 2X")}},
+        QVariantMap{{"id","vfg"},{"label",tr("NVIDIA VFG · RTX 30（实验）/ 40 / 50")}},
+        QVariantMap{{"id","anr"},{"label",QStringLiteral("Apex ANR · Beta")}}
     };
     const auto caps = effectCapabilities();
     for (auto& choice : choices) {
@@ -33,6 +37,7 @@ QVariantList QmlPlayerBridge::fgBackendChoices() const {
 }
 QString QmlPlayerBridge::fgProviderText() const {
     const auto& s=impl_->snapshot;
+    if(fgBackendName()==QLatin1String("anr"))return tr("Apex ANR 测试版 · 跨厂商补帧 · 2X～6X · 使用估计运动，非游戏原生数据");
     if(fgBackendName()==QLatin1String("vfg")){
         if(!vfgHardwarePossible())return tr("VFG 需要 NVIDIA RTX 30 / 40 / 50（30 系为实验兼容）");
         if(!effectCapabilities().value("vfg").toMap().value("available").toBool())return tr("未找到 VFG 运行组件，请在组件页核对路径");
@@ -41,7 +46,8 @@ QString QmlPlayerBridge::fgProviderText() const {
     }
     if(engine::fsrFrameGeneration(s.applied.frameGenerationBackend)&&s.applied.multiplier>1&&!s.fsrProviderVersion.empty())
         return tr("实际运行：FSR %1 · 2X").arg(QString::fromStdString(s.fsrProviderVersion));
-    if(fgBackendName()==QLatin1String("fsr4"))return tr("FSR 4 ML 需要支持的 RX 9000 和驱动；实卡待验");
+    if(fgBackendName()==QLatin1String("amdfrc"))return tr("AMD 驱动自带的视频补帧（AMF FRC），只用前后两帧画面估算运动，固定 2X");
+    if(fgBackendName()==QLatin1String("fsr4"))return tr("FSR 4 ML 需要支持的 RX 9000 和驱动，不可用时自动改用 FSR 3.1；尚未在 RX 9000 实卡上验证");
     if(fgBackendName()==QLatin1String("fsr3"))return tr("FSR 3.1 跨厂商补帧 · 最高 2X");
     if(fgBackendName()==QLatin1String("xess"))
         return fgMaxMultiplier()<4?tr("当前 XeSS 模块未匹配 3X / 4X 解锁版本；2X 可用，请在组件页核对版本"):
@@ -64,7 +70,7 @@ int xessCeiling(const engine::PlayerSnapshot& s) {
     return std::max(cap, seen);
 }
 void QmlPlayerBridge::setFgBackendName(const QString& value) {
-    if(value!=QLatin1String("dlss")&&value!=QLatin1String("xess")&&value!=QLatin1String("fsr3")&&value!=QLatin1String("fsr4")&&value!=QLatin1String("vfg")){emit notice(tr("未知补帧后端"),true);return;}
+    if(value!=QLatin1String("anr")&&value!=QLatin1String("dlss")&&value!=QLatin1String("xess")&&value!=QLatin1String("fsr3")&&value!=QLatin1String("fsr4")&&value!=QLatin1String("vfg")&&value!=QLatin1String("amdfrc")){emit notice(tr("未知补帧后端"),true);return;}
     const auto availability = effectCapabilities().value(value).toMap();
     if (!availability.value("available").toBool()) { emit notice(availability.value("reason").toString(), true); emit settingsChanged(); return; }
     auto s = settings();
@@ -72,6 +78,8 @@ void QmlPlayerBridge::setFgBackendName(const QString& value) {
                     : value == QLatin1String("fsr3") ? engine::FrameGenerationBackend::Fsr
                     : value == QLatin1String("fsr4") ? engine::FrameGenerationBackend::Fsr4
                     : value == QLatin1String("vfg") ? engine::FrameGenerationBackend::Vfg
+                    : value == QLatin1String("anr") ? engine::FrameGenerationBackend::Anr
+                    : value == QLatin1String("amdfrc") ? engine::FrameGenerationBackend::AmdFrc
                     : engine::FrameGenerationBackend::Dlss;
     if (s.frameGenerationBackend == want) return;
     if(want==engine::FrameGenerationBackend::Vfg&&(!vfgHardwarePossible()||!pipeline::VfgBackend::runtimeAvailable(runtime::localRuntimeDirectory().wstring()))){
@@ -89,7 +97,7 @@ void QmlPlayerBridge::setFgBackendName(const QString& value) {
     auto& chain = impl_->chain;
     const auto beforeMultiplier = chain.fgMultiplier;
     const int cap = want == engine::FrameGenerationBackend::XeSS ? xessCeiling(impl_->snapshot)
-                  : engine::fsrFrameGeneration(want) ? 2 : want==engine::FrameGenerationBackend::Vfg?8:6;
+                  : engine::twoXFrameGeneration(want) ? 2 : want==engine::FrameGenerationBackend::Vfg?8:6;
     chain.fgMultiplier=normalizeFgMultiplier(chain.fgMultiplier,want,uint32_t(cap));
     const bool clamped = chain.fgMultiplier != beforeMultiplier;
     if(!impl_->commit(s)){
@@ -109,7 +117,8 @@ int QmlPlayerBridge::fgMaxMultiplier() const {
     // 2X, or what a running session already reported above 2X.
     const auto& s = impl_->snapshot;
     if(settings().frameGenerationBackend==engine::FrameGenerationBackend::Vfg)return 8;
-    if(engine::fsrFrameGeneration(settings().frameGenerationBackend))return 2;
+    if(settings().frameGenerationBackend==engine::FrameGenerationBackend::Anr)return 6;
+    if(engine::twoXFrameGeneration(settings().frameGenerationBackend))return 2;
     if (settings().frameGenerationBackend == engine::FrameGenerationBackend::XeSS)
         return xessCeiling(s);
     if (s.fgCapabilityKnown && s.fgMultiFrameMax > 0) return std::clamp(s.fgMultiFrameMax + 1, 2, 6);
@@ -172,8 +181,8 @@ bool QmlPlayerBridge::nvidiaLowLatencyAvailable()const{return primaryGpuVendor()
 void QmlPlayerBridge::setNvidiaLowLatency(int value){
     const bool nvidia=nvidiaLowLatencyAvailable();
     if(value<0||value>2||(!nvidia&&value!=0))return;
-    // On NVIDIA the three states own the low queue; elsewhere only the kept choice changes.
-    auto p=impl_->presentation;p.nvidiaLowLatency=engine::NvidiaLowLatency(value);
+    // Legacy UI value 2 migrates to On; no UI/API request can enable Boost.
+    auto p=impl_->presentation;p.nvidiaLowLatency=engine::savedNvidiaLowLatency(value);
     engine::syncNvidiaLowLatencyQueue(p,nvidia);
     if(p==impl_->presentation)return;
     impl_->presentation=p;applyPresentation();
@@ -246,13 +255,14 @@ QString QmlPlayerBridge::dlssgLiteHint() const {
     if (s.running && s.dlssgLiteState == 1) return tr("生效中：NVIDIA DLSS 帧生成性能模式（测试版）");
     return tr("NVIDIA 新增的性能模式（测试版）：补帧更省 GPU，高倍率更稳，画质可能略降；导出仍用标准模式");
 }
-int QmlPlayerBridge::contentRate() const { return int(settings().content); }
+int QmlPlayerBridge::contentRate() const { return int(engine::currentContentRate(settings().content)); }
 void QmlPlayerBridge::setContentRate(int value) {
     if (value < 0 || value > int(engine::ContentRate::Capture60To30)) return;
+    value=int(engine::currentContentRate(static_cast<engine::ContentRate>(value)));
     auto s = settings();
     if (int(s.content) == value) return;
     s.content = static_cast<engine::ContentRate>(value);
-    if (!impl_->commit(std::move(s))) { emit notice(tr("引擎未接受内容节奏，原设置保留"), true); return; }
+    if (!impl_->commit(std::move(s))) { emit notice(tr("引擎未接受去除重复帧设置，原设置保留"), true); return; }
     // Shared cadence stays in shell preferences and can be included in presets.
     impl_->prefs[QStringLiteral("contentRate")] = value;
     if (!impl_->savePrefs()) veyra::log::warn("ui-prefs", "content cadence not saved");

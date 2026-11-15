@@ -1,5 +1,17 @@
 # Third-party dependencies
 
+## Apex ANR frame-generation runtime (2026-11-13, local personal candidate)
+
+The ANR backend hosts the NGX-compatible D3D12 exports of the external Apex
+Compute ANR FG V.B15 runtime from <https://github.com/apex-compute/ANR/releases/tag/FG-V.B15>.
+No ANR implementation is copied into Veyra source. The addon metadata, untouched
+model packs and runtime binary remain separate files in `runtime/anr`; source
+revision, hashes, integration and test limits are recorded in
+[docs/ANR_B15_2026-11-13.md](docs/ANR_B15_2026-11-13.md).
+The addon did not supply its runtime source or an explicit redistribution
+licence. Its inclusion here is a local personal candidate, not a public release
+or a statement that Apex has granted broader distribution rights.
+
 ## RX 7000 experimental NR provider (2026-10-30, development branch)
 
 RedDukeDev/dlss5-nr-amd-custom, fixed commit `ab455d179922adc11f65675d399e1d553bf423f0`: MIT network layer and NR kernels; ZLUDA at `b135e233bb7a6ff7f8690e49701f87f4944adcee`, MIT OR Apache-2.0. Original notices, exact file selection, modifications and proprietary component boundaries are in [third_party/redduke/VEYRA_ORIGIN.md](third_party/redduke/VEYRA_ORIGIN.md) and its LICENSE. The five external source files are fetched and Git-blob verified by `scripts/amd-nr/prepare-rdna3-source.py`; no SDK, runtime DLL, model or translation cache enters source Git.
@@ -770,8 +782,22 @@ NvAPI_Disp_GetVRRInfo and NvAPI_DISP_GetMonitorCapabilities and renamed
 NV_GET_VRR_INFO_V1 and NV_MONITOR_CAPABILITIES_V1 (generic capability bits)
 layouts (checked against the commit above). It only reads the monitor's
 variable-refresh support and state, for diagnostics and to enable the 可变刷新
-switch; the driver setting is never changed. Same loading rules and the same
+switch; this monitor query never changes driver settings. Same loading rules and the same
 license as above.
+
+`src/gfx/NvidiaVrrProfile.cpp` (2026-11-14) adds minimal renamed DRS v1
+application/profile/setting layouts, QueryInterface IDs and G-SYNC scope enums,
+checked against NVIDIA/nvapi commit
+`51e5aae4bc40c3ccd3fb7d4dfd94256e7bfc496e` (`nvapi.h`,
+`nvapi_interface.h`, `NvApiDriverSettings.h`, MIT). The independently authored
+controller exposes explicit check/repair/restore actions for the current
+application's full-path, isolated driver profile. Unlike the monitor query
+above, this user-invoked operation can save the two application scope values.
+It never enables global G-SYNC, edits another application's profile, or copies
+Profile Inspector implementation code. Original local/inherited values are
+saved before mutation; restoration preserves unrelated settings. No complete
+SDK header or driver DLL is committed or distributed. The same NVIDIA MIT
+notice below applies to the minimal ABI reference declarations.
 
 Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
@@ -1073,3 +1099,18 @@ Only the recognized VFG runtime receives this experimental SM86 adaptation. RTX 
 
 Veyra Virtual Speaker uses the original VB-Audio VB-CABLE Pack46 for Windows. Builds configured with `VEYRA_VB_CABLE_PACKAGE` include the unmodified vendor ZIP for offline installation. Veyra opens the vendor setup only after the user confirms installation or removal. VB-CABLE is VB-Audio donationware. Users can support VB-Audio from the vendor site. See [VB-CABLE](https://vb-audio.com/Cable/) and [VB-Audio distribution terms](https://vb-audio.com/Services/licensing.htm).
 
+## AMD Advanced Media Framework (AMF) SDK headers
+
+- Source: https://github.com/GPUOpen-LibrariesAndSDKs/AMF, tag v1.5.3 (commit 57ee0cfb0e1a08d9041f77435653794c1b012be0), public headers `amf/public/include` only, used at build time for AMD FRC (frame rate conversion).
+- License: MIT, Copyright (c) Advanced Micro Devices, Inc. (see LICENSE.txt in that tag; each header carries the MIT notice).
+- Nothing from the SDK is redistributed in Veyra packages. The AMF runtime (`amfrt64.dll`) belongs to the user's AMD driver and is loaded from the Windows system directory only.
+
+## Startup music in runnable packages (2026-11-15)
+
+The user supplied BGM.MP3 and confirmed permission to distribute the exact file
+in Veyra runnable packages. The asset is separate from Veyra source code and its
+GPL license; it is excluded from Git and corresponding source archives.
+Runtime path: `media/startup-music.mp3`, 1847011 bytes, SHA256
+`3005aa601f06a97d3968fd9fa171e870fceb4ec47586f1e950c9ed3c7875fb6a`.
+Each runnable package includes its separate notice and manifest. Windows Media
+Foundation provides decoding; no additional codec or audio SDK is bundled.

@@ -12,6 +12,8 @@
 /.vs/
 /vcpkg_installed/
 CMakeUserPresets.json
+/deps/
+/.vscode/
 
 # Diagnostics and captures
 /captures/
@@ -25,3 +27,6 @@ CMakeUserPresets.json
 /loop/STOP
 /loop/tmp/
 /loop/local/
+# User-authorized runtime music is distributed only in binary packages.
+startup-music.mp3
+BGM.MP3

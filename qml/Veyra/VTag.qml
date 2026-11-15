@@ -5,8 +5,9 @@ Rectangle {
     id: tag
     property string text: ""
     property string kind: ""   // "" | "exp" | "acc" | "warn" | "ok"
+    property bool wrapText: false
     implicitWidth: tagText.implicitWidth + 14
-    implicitHeight: Theme.tagHeight
+    implicitHeight: wrapText ? Math.max(Theme.tagHeight, tagText.implicitHeight + 6) : Theme.tagHeight
     radius: 6
     color: kind === "exp" ? Theme.expSoft
          : kind === "acc" ? Theme.accentSoft
@@ -16,6 +17,8 @@ Rectangle {
     Text {
         id: tagText
         anchors.centerIn: parent
+        width: tag.wrapText ? Math.max(0, tag.width - 14) : implicitWidth
+        wrapMode: tag.wrapText ? Text.Wrap : Text.NoWrap
         text: tag.text
         color: tag.kind === "exp" ? Theme.exp
              : tag.kind === "acc" ? Theme.accent

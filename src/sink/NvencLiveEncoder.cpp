@@ -1,5 +1,7 @@
 #include "veyra/sink/NvencLiveEncoder.h"
 #include "veyra/Log.h"
+#include "NvencCodec.h"
+#include "NvencD3D11Bridge.h"
 
 #include <ffnvcodec/nvEncodeAPI.h>
 #include <wrl/client.h>
@@ -16,6 +18,7 @@ struct NvencLiveEncoder::Impl {
     void* encoder=nullptr;
     NV_ENCODE_API_FUNCTION_LIST api{};
     Config config;
+    std::unique_ptr<NvencD3D11Bridge> bridge;
     NV_ENC_BUFFER_FORMAT format=NV_ENC_BUFFER_FORMAT_NV12;
     std::wstring error;
     std::vector<uint8_t> sequence;
@@ -26,6 +29,8 @@ struct NvencLiveEncoder::Impl {
     };
     struct Output {
         ComPtr<ID3D12Resource> buffer;
+        NV_ENC_OUTPUT_PTR bitstream=nullptr;
+        HANDLE completion=nullptr;bool eventRegistered=false;
         NV_ENC_REGISTERED_PTR registered=nullptr;
         NV_ENC_INPUT_PTR mapped=nullptr;
         NV_ENC_OUTPUT_RESOURCE_D3D12 resource{};
@@ -64,7 +69,7 @@ NvencLiveEncoder::~NvencLiveEncoder(){close();}
 std::vector<uint8_t> NvencLiveEncoder::headers() const{return p_->sequence;}
 std::wstring NvencLiveEncoder::lastError() const{return p_->error;}
 std::wstring NvencLiveEncoder::describe() const{
-    return p_->config.hevc?(p_->config.hdr?L"NVIDIA NVENC HEVC 10bit":L"NVIDIA NVENC HEVC"):L"NVIDIA NVENC H.264";
+    return std::format(L"NVIDIA NVENC {}{}",videoCodecWideName(selectedVideoCodec(p_->config.codec,p_->config.hevc)),p_->config.hdr?L" 10bit":L"")+(p_->bridge?L" (D3D11 GPU compatibility)":L"");
 }
 size_t NvencLiveEncoder::inFlight() const{return size_t(p_->submitted-p_->completed);}
 size_t NvencLiveEncoder::capacity() const{return p_->outputs.size();}
@@ -72,8 +77,10 @@ size_t NvencLiveEncoder::capacity() const{return p_->outputs.size();}
 bool NvencLiveEncoder::open(ID3D12Device* device,const Config& config,const std::vector<ID3D12Resource*>& inputTextures){
     auto& p=*p_;
     p.config=config;
+    const auto choice=selectedVideoCodec(config.codec,config.hevc);
+    if(!validVideoCodec(choice))return p.fail(L"Invalid recording codec");
     if(!device||inputTextures.empty())return p.fail(L"NVENC: no device or input textures");
-    if(config.hdr&&!config.hevc)return p.fail(L"HDR recording requires HEVC Main10");
+    if(config.hdr&&choice==VideoCodec::H264)return p.fail(L"HDR recording requires H.265 / HEVC or AV1 10-bit");
     if(!config.width||!config.height||(config.width&1)||(config.height&1))
         return p.fail(std::format(L"NVENC: unsupported extent {}x{}",config.width,config.height));
     p.format=config.hdr?NV_ENC_BUFFER_FORMAT_YUV420_10BIT:NV_ENC_BUFFER_FORMAT_NV12;
@@ -88,34 +95,44 @@ bool NvencLiveEncoder::open(ID3D12Device* device,const Config& config,const std:
     if(!p.check(create(&p.api),"CreateInstance"))return false;
     NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS session{};
     session.version=NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;session.apiVersion=NVENCAPI_VERSION;
-    session.device=device;session.deviceType=NV_ENC_DEVICE_TYPE_DIRECTX;
+    if(choice==VideoCodec::Av1){
+        p.bridge=std::make_unique<NvencD3D11Bridge>();
+        if(!p.bridge->open(device,inputTextures))return p.fail(p.bridge->error());
+        veyra::log::info("nvenc-live","AV1 transport=D3D11-GPU-compatibility shared-textures=true pixelReadbacks=0");
+    }
+    session.device=p.bridge?static_cast<void*>(p.bridge->device()):static_cast<void*>(device);session.deviceType=NV_ENC_DEVICE_TYPE_DIRECTX;
     if(!p.check(p.api.nvEncOpenEncodeSessionEx(&session,&p.encoder),"OpenD3D12Session"))return false;
-    const GUID codec=config.hevc?NV_ENC_CODEC_HEVC_GUID:NV_ENC_CODEC_H264_GUID;
+    const GUID codec=nvencCodecGuid(choice);
+    if(!nvencSupportsCodec(p.api,p.encoder,codec))return p.fail(std::format(L"This GPU/driver cannot encode {} with NVENC. AV1 requires supported hardware (GeForce RTX 40/50 series). Select H.265 / HEVC or H.264.",videoCodecWideName(choice)));
     int maxWidth=0,maxHeight=0;
     NV_ENC_CAPS_PARAM caps{};caps.version=NV_ENC_CAPS_PARAM_VER;
     caps.capsToQuery=NV_ENC_CAPS_WIDTH_MAX;p.api.nvEncGetEncodeCaps(p.encoder,codec,&caps,&maxWidth);
     caps.capsToQuery=NV_ENC_CAPS_HEIGHT_MAX;p.api.nvEncGetEncodeCaps(p.encoder,codec,&caps,&maxHeight);
     if(maxWidth>0&&maxHeight>0&&(int(config.width)>maxWidth||int(config.height)>maxHeight))
-        return p.fail(std::format(L"NVENC {} supports at most {}x{} (requested {}x{})",config.hevc?L"HEVC":L"H.264",maxWidth,maxHeight,config.width,config.height));
+        return p.fail(std::format(L"NVENC {} supports at most {}x{} (requested {}x{})",videoCodecWideName(choice),maxWidth,maxHeight,config.width,config.height));
     if(config.hdr){
         int tenBit=0;caps.capsToQuery=NV_ENC_CAPS_SUPPORT_10BIT_ENCODE;
         p.api.nvEncGetEncodeCaps(p.encoder,codec,&caps,&tenBit);
-        if(!tenBit)return p.fail(L"this GPU's NVENC has no 10-bit HEVC encode");
+        if(!tenBit)return p.fail(std::format(L"This GPU cannot encode 10-bit {}",videoCodecWideName(choice)));
     }
     // Recording favours quality over latency, but B-frames would reorder the
     // output and make DTS differ from PTS; keep IPPP with a 2 s GOP.
     NV_ENC_PRESET_CONFIG preset{};preset.version=NV_ENC_PRESET_CONFIG_VER;preset.presetCfg.version=NV_ENC_CONFIG_VER;
     if(!p.check(p.api.nvEncGetEncodePresetConfigEx(p.encoder,codec,NV_ENC_PRESET_P4_GUID,NV_ENC_TUNING_INFO_HIGH_QUALITY,&preset),"GetPreset"))return false;
     auto& cfg=preset.presetCfg;
-    const uint32_t fps=std::clamp(config.fps,1u,480u);
+    const uint32_t fps=std::clamp(config.fpsNum?(config.fpsNum+std::max(1u,config.fpsDen)/2)/std::max(1u,config.fpsDen):config.fps,1u,480u);
     cfg.frameIntervalP=1;cfg.gopLength=fps*2;cfg.rcParams.enableLookahead=0;
     const uint32_t bits=std::clamp(config.bitrateMbps,1u,400u)*1000000u;
-    cfg.rcParams.rateControlMode=NV_ENC_PARAMS_RC_VBR;
+    cfg.rcParams.rateControlMode=config.rateControl==ExportRateControl::Cbr?NV_ENC_PARAMS_RC_CBR:NV_ENC_PARAMS_RC_VBR;
     cfg.rcParams.averageBitRate=bits;
     cfg.rcParams.maxBitRate=bits+bits/2;
     cfg.rcParams.vbvBufferSize=bits/2;
     cfg.rcParams.vbvInitialDelay=cfg.rcParams.vbvBufferSize;
-    if(config.hevc){
+    if(config.rateControl==ExportRateControl::Cbr)cfg.rcParams.maxBitRate=bits;
+    if(config.rateControl==ExportRateControl::Cq){cfg.rcParams.rateControlMode=NV_ENC_PARAMS_RC_CONSTQP;cfg.rcParams.constQP={20,22,22};}
+    if(choice==VideoCodec::Av1){
+        configureNvencAv1(cfg,config.hdr);
+    }else if(choice==VideoCodec::Hevc){
         auto& hevc=cfg.encodeCodecConfig.hevcConfig;
         hevc.idrPeriod=cfg.gopLength;hevc.repeatSPSPPS=1;
         auto& vui=hevc.hevcVUIParameters;
@@ -143,7 +160,7 @@ bool NvencLiveEncoder::open(ID3D12Device* device,const Config& config,const std:
     NV_ENC_INITIALIZE_PARAMS init{};init.version=NV_ENC_INITIALIZE_PARAMS_VER;
     init.encodeGUID=codec;init.presetGUID=NV_ENC_PRESET_P4_GUID;init.tuningInfo=NV_ENC_TUNING_INFO_HIGH_QUALITY;
     init.encodeWidth=config.width;init.encodeHeight=config.height;init.darWidth=config.width;init.darHeight=config.height;
-    init.frameRateNum=fps;init.frameRateDen=1;init.enablePTD=1;init.encodeConfig=&cfg;
+    init.frameRateNum=config.fpsNum?config.fpsNum:fps;init.frameRateDen=config.fpsNum?std::max(1u,config.fpsDen):1;init.enableEncodeAsync=p.bridge?1:0;init.enablePTD=1;init.encodeConfig=&cfg;
     init.maxEncodeWidth=config.width;init.maxEncodeHeight=config.height;init.bufferFormat=p.format;
     if(!p.check(p.api.nvEncInitializeEncoder(p.encoder,&init),"InitializeEncoder"))return false;
     p.sequence.resize(4096);uint32_t size=0;
@@ -167,7 +184,13 @@ bool NvencLiveEncoder::open(ID3D12Device* device,const Config& config,const std:
     p.inputs.resize(inputTextures.size());
     for(size_t i=0;i<inputTextures.size();++i){
         auto& in=p.inputs[i];
-        if(!registerResource(inputTextures[i],false,config.width,config.height,in.registered,in.mapped))return false;
+        if(p.bridge){
+            NV_ENC_REGISTER_RESOURCE r{};r.version=NV_ENC_REGISTER_RESOURCE_VER;r.resourceType=NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
+            r.resourceToRegister=p.bridge->texture(unsigned(i));r.width=config.width;r.height=config.height;r.bufferFormat=p.format;r.bufferUsage=NV_ENC_INPUT_IMAGE;
+            if(!p.check(p.api.nvEncRegisterResource(p.encoder,&r),"RegisterD3D11Input"))return false;in.registered=r.registeredResource;
+            NV_ENC_MAP_INPUT_RESOURCE m{};m.version=NV_ENC_MAP_INPUT_RESOURCE_VER;m.registeredResource=in.registered;
+            if(!p.check(p.api.nvEncMapInputResource(p.encoder,&m),"MapD3D11Input"))return false;in.mapped=m.mappedResource;
+        }else if(!registerResource(inputTextures[i],false,config.width,config.height,in.registered,in.mapped))return false;
         in.resource.version=NV_ENC_INPUT_RESOURCE_D3D12_VER;in.resource.pInputBuffer=in.mapped;
         in.resource.inputFencePoint.version=NV_ENC_FENCE_POINT_D3D12_VER;in.resource.inputFencePoint.bWait=1;
     }
@@ -176,6 +199,13 @@ bool NvencLiveEncoder::open(ID3D12Device* device,const Config& config,const std:
     const uint64_t bitstreamBytes=std::max<uint64_t>(1u<<20,(uint64_t(config.width)*config.height*3/2+4095)&~4095ull);
     p.outputs.resize(std::min<size_t>(4,inputTextures.size()));
     for(auto& out:p.outputs){
+        if(p.bridge){
+            NV_ENC_CREATE_BITSTREAM_BUFFER b{};b.version=NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
+            if(!p.check(p.api.nvEncCreateBitstreamBuffer(p.encoder,&b),"CreateD3D11Bitstream"))return false;out.bitstream=b.bitstreamBuffer;
+            out.completion=CreateEventW(nullptr,TRUE,FALSE,nullptr);if(!out.completion)return p.fail(L"AV1 completion event creation failed");
+            NV_ENC_EVENT_PARAMS event{};event.version=NV_ENC_EVENT_PARAMS_VER;event.completionEvent=out.completion;
+            if(!p.check(p.api.nvEncRegisterAsyncEvent(p.encoder,&event),"RegisterAV1Completion"))return false;out.eventRegistered=true;continue;
+        }
         D3D12_HEAP_PROPERTIES hp{};hp.Type=D3D12_HEAP_TYPE_READBACK;
         D3D12_RESOURCE_DESC bd{};bd.Dimension=D3D12_RESOURCE_DIMENSION_BUFFER;bd.Width=bitstreamBytes;bd.Height=1;bd.DepthOrArraySize=1;
         bd.MipLevels=1;bd.SampleDesc.Count=1;bd.Layout=D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
@@ -187,7 +217,7 @@ bool NvencLiveEncoder::open(ID3D12Device* device,const Config& config,const std:
         out.resource.outputFencePoint.bSignal=1;
     }
     veyra::log::info("nvenc-live",std::format("open codec={} hdr={} extent={}x{} fps={} vbrMbps={} inputs={} outputs={} bitstreamBytes={}",
-        config.hevc?"HEVC":"H264",config.hdr,config.width,config.height,fps,bits/1000000,p.inputs.size(),p.outputs.size(),bitstreamBytes));
+        videoCodecName(choice),config.hdr,config.width,config.height,fps,bits/1000000,p.inputs.size(),p.outputs.size(),bitstreamBytes));
     p.error.clear();
     return true;
 }
@@ -202,8 +232,10 @@ bool NvencLiveEncoder::submit(unsigned index,ID3D12Fence* waitFence,uint64_t val
     out.value=++p.signal;out.resource.outputFencePoint.signalValue=out.value;
     NV_ENC_PIC_PARAMS pic{};pic.version=NV_ENC_PIC_PARAMS_VER;
     pic.inputWidth=p.config.width;pic.inputHeight=p.config.height;
-    pic.inputBuffer=&in.resource;pic.outputBitstream=&out.resource;pic.bufferFmt=p.format;
+    if(p.bridge&&!p.bridge->copy(index,waitFence,value))return p.fail(p.bridge->error());
+    pic.inputBuffer=p.bridge?in.mapped:static_cast<NV_ENC_INPUT_PTR>(&in.resource);pic.outputBitstream=p.bridge?out.bitstream:static_cast<NV_ENC_OUTPUT_PTR>(&out.resource);pic.bufferFmt=p.format;
     pic.pictureStruct=NV_ENC_PIC_STRUCT_FRAME;pic.inputTimeStamp=uint64_t(ptsUs);pic.inputDuration=1;
+    if(p.bridge){ResetEvent(out.completion);pic.completionEvent=out.completion;}
     if(forceKey)pic.encodePicFlags=NV_ENC_PIC_FLAG_FORCEIDR|NV_ENC_PIC_FLAG_OUTPUT_SPSPPS;
     if(!p.check(p.api.nvEncEncodePicture(p.encoder,&pic),"EncodePicture"))return false;
     out.pending=true;out.ptsUs=ptsUs;out.input=index;++p.submitted;
@@ -216,20 +248,27 @@ bool NvencLiveEncoder::takeOldest(Packet& packet,bool wait,uint32_t timeoutMs,bo
     if(p.completed==p.submitted)return true;
     auto& out=p.outputs[p.completed%p.outputs.size()];
     if(!out.pending)return p.fail(L"NVENC output bookkeeping lost a frame");
-    if(p.fence->GetCompletedValue()<out.value){
+    if(!p.bridge&&p.fence->GetCompletedValue()<out.value){
         if(!wait)return true;
         if(FAILED(p.fence->SetEventOnCompletion(out.value,p.event)))return p.fail(L"NVENC output fence event failed");
         if(WaitForSingleObject(p.event,timeoutMs)!=WAIT_OBJECT_0)
             return p.fail(std::format(L"NVENC output not ready after {} ms",timeoutMs));
     }
-    NV_ENC_LOCK_BITSTREAM lock{};lock.version=NV_ENC_LOCK_BITSTREAM_VER;lock.outputBitstream=&out.resource;lock.doNotWait=0;
-    if(!p.check(p.api.nvEncLockBitstream(p.encoder,&lock),"LockBitstream"))return false;
+    if(p.bridge){
+        const DWORD completed=WaitForSingleObject(out.completion,wait?timeoutMs:0);
+        if(completed==WAIT_TIMEOUT&&!wait)return true;
+        if(completed!=WAIT_OBJECT_0)return p.fail(std::format(L"AV1 output not ready after {} ms",timeoutMs));
+    }
+    NV_ENC_LOCK_BITSTREAM lock{};lock.version=NV_ENC_LOCK_BITSTREAM_VER;
+    lock.outputBitstream=p.bridge?out.bitstream:static_cast<NV_ENC_OUTPUT_PTR>(&out.resource);lock.doNotWait=0;
+    const auto locked=p.api.nvEncLockBitstream(p.encoder,&lock);
+    if(!p.check(locked,"LockBitstream"))return false;
     const auto* bytes=static_cast<const uint8_t*>(lock.bitstreamBufferPtr);
     packet.data.assign(bytes,bytes+lock.bitstreamSizeInBytes);
     packet.ptsUs=int64_t(lock.outputTimeStamp);
-    packet.key=lock.pictureType==NV_ENC_PIC_TYPE_IDR||lock.pictureType==NV_ENC_PIC_TYPE_I;
+    packet.key=lock.pictureType==NV_ENC_PIC_TYPE_IDR;
     packet.input=out.input;
-    if(!p.check(p.api.nvEncUnlockBitstream(p.encoder,&out.resource),"UnlockBitstream"))return false;
+    if(!p.check(p.api.nvEncUnlockBitstream(p.encoder,p.bridge?out.bitstream:static_cast<NV_ENC_OUTPUT_PTR>(&out.resource)),"UnlockBitstream"))return false;
     out.pending=false;++p.completed;ready=true;
     return true;
 }
@@ -240,6 +279,9 @@ void NvencLiveEncoder::close(){
     if(p.encoder){
         // Outputs that never completed are abandoned with the session.
         for(auto& out:p.outputs){
+            if(out.eventRegistered){NV_ENC_EVENT_PARAMS event{};event.version=NV_ENC_EVENT_PARAMS_VER;event.completionEvent=out.completion;p.api.nvEncUnregisterAsyncEvent(p.encoder,&event);}
+            if(out.completion)CloseHandle(out.completion);
+            if(out.bitstream)p.api.nvEncDestroyBitstreamBuffer(p.encoder,out.bitstream);
             if(out.mapped)p.api.nvEncUnmapInputResource(p.encoder,out.mapped);
             if(out.registered)p.api.nvEncUnregisterResource(p.encoder,out.registered);
         }
@@ -249,7 +291,7 @@ void NvencLiveEncoder::close(){
         }
         p.api.nvEncDestroyEncoder(p.encoder);p.encoder=nullptr;
     }
-    p.outputs.clear();p.inputs.clear();
+    p.outputs.clear();p.inputs.clear();p.bridge.reset();
     if(p.event){CloseHandle(p.event);p.event=nullptr;}
     p.fence.Reset();
     if(p.dll){FreeLibrary(p.dll);p.dll=nullptr;}

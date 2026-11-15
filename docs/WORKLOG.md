@@ -1007,3 +1007,260 @@ Patreon 主页 HTTP200。咖啡页面自动访问返回HTTP403，按用户给定
 执行 E:/项目/Veyra/reports/codex-group10-qr-20261111/update.py prepare、releases fdc626547b4020b888efd8d420d6dc28743b0d88、verify。两个含旧9群码的Release（v2.1.5和v2.1.5-sources）只替换群图URL、群号和图示11月18日前有效的说明；逐字反向还原验证其余正文不变。Release使用图提交的固定URL，README和模板引用main。赞助与群图仍各220，Patreon两个入口和Discord保持。匿名GET核对群图原字节和赞助图可达，API核对文档Git blob、Latest2.1.5、资产ID/大小/digest及发布元数据不变。首次将GitHub LF文本与Windows CRLF工作副本直接比较导致误报；改为比较提交blob后通过，无需改远端内容。
 
 报告、前后Release快照及patch、图片身份和更新脚本在 E:/项目/Veyra/reports/codex-group10-qr-20261111，最终回执FINAL.json。用户原图不裁剪、不重绘、不改像素；不修改发布标签、产品配置或运行库，不代发群消息。
+
+## 2026-11-12 Apex ANR 与悬浮栏截图／录制（Jack 本地便携版）
+
+按本轮用户授权在当前下载目录源码实现独立 ANR FG V.B14 后端与补帧下拉选项；复用图内估计光流、代理深度、HDR、帧批次及导出，不替换原 NVIDIA DLL，不接 OptiScaler。设置追加 ID5，预设库／会话／旧预设采用21／16／37版本。用户后续要求悬浮顶栏加入截图及录制，并纠正为与原导航图标同行、同尺寸的纯图标；保留录制指示和原录制表现，不在栏内显示录制文字或计时。
+
+实际 RTX4090：ANR GPU85项全过且D3D12错误0，ANR设置39／0，原VFG设置683／0，Qt Quick175项／0失败／0错误／1跳过。真实下拉切换、2X→4X、切回DLSS再返回、重启及缺组件拒绝通过；12源帧导出独立解码24／48帧。极简和全屏截图／录制均有实际文件与独立解码证据；最终两段录制220／217帧。SDK来自用户提供压缩包及C盘CUDA13.5头文件，AMD光流依赖只调整本地CMake构建胶水；源码、组件、旧程序和真实配置保持。测试初次未创建目标目录而写入默认目录的四个文件按精确名称与SHA移回E盘任务报告，原用户文件不动。
+
+说明与边界见 [APEX_ANR_2026-11-12.md](APEX_ANR_2026-11-12.md)。E:/项目/Veyra下保留build、deps、tests、reports/apex-anr-20261112及releases/apex-anr-20261112；ASCII Junction为同一实体路径。本地标签2.1.5-anr-beta，带源码ZIP和SHA，不提交／push／公开发布。ANR上游addon未带明确再分发许可；本包仅本地个人候选。该依赖配置未编入PS5／Moonlight／Xbox串流与libass，不声称AMD／Intel实卡验证。
+
+## 2026-11-12 ANR beta2 运动输入修正
+
+用户报告 GTAVI_An_Extended_Look.mp4 中ANR 2X／3X观感近似原帧，而VFG较好。只读日志确认确有ANR帧提交和显示，不能据成功计数认定插帧正确。受控运动质心测试发现错误复用了DLSS消费端的反向归一化scale；ANR直连提供方需要当前→上一帧像素运动、scale=+1。修正仅在AnrFgBackend；NVOF、DLSS、VFG与原组件不改。
+
+加强GPU回归到133项：旧转换命中20项位置断言失败，修正转换0失败，SDR／HDR及2X／3X／4X／6X覆盖。诊断读回需另一个已提交命令列表，否则读到前次输出；仅测试增加等待，产品不加CPU等待。只读原14.1GB视频，在850秒起取30个4K源帧完成旧／新ANR 2X／3X及VFG2X实际导出；另以960×540灰度隔帧重建14个真实留出帧，平均误差旧ANR14.6153→新ANR9.7167（约降33.5%），VFG7.3752仍更好。不推广成全场景画质结论。
+
+beta2使用全新私有测试配置复验；首次复用旧短素材会话恢复到8秒导致断言提前触发，改为本任务独立profile，不修改用户配置。实际运行的E:/Veyra-2.1.5-ANR-beta-win64-portable未替换或停止。独立交付releases/apex-anr-motion-fix-20261112，报告reports/anr-quality-20261112；详情 [ANR_MOTION_FIX_2026-11-12.md](ANR_MOTION_FIX_2026-11-12.md)。原beta ZIP保留，不push／公开发布。
+
+## 2026-11-13 ANR FG V.B15 runtime update
+
+Updated a separate portable candidate from the user-requested upstream full ZIP.
+Retained the hash-verified beta2 executable and pixel-space motion correction;
+replaced only the complete ANR runtime set and delivery documentation. Upstream
+provider identity matches its package metadata. No OptiScaler, wrapper or installer
+was installed. Existing copies and user settings were preserved.
+
+RTX 4090: 133 GPU checks passed, including SDR/HDR and 2X/3X/4X/6X temporal
+positions. Actual UI playback, switching, seek/fullscreen and settings restore
+passed; independently decoded 2X/4X exports contain 24/48 frames for 12 source
+frames. No long-duration VRAM-growth test or AMD/Intel hardware validation.
+See [ANR_B15_2026-11-13.md](ANR_B15_2026-11-13.md), the reproducible
+`scripts/acceptance/update-apex-anr-b15.py` entry point, and task evidence under
+`E:/项目/Veyra/reports/anr-b15-20261113`. Delivery is under
+`E:/项目/Veyra/releases/anr-b15-20261113`; local only, no push or public release.
+
+## 2026-11-13 Frame-generation software latency comparison
+
+User clarified 1440p60 capture carrying 30 fps gameplay, duplicate removal, then
+60 fps output. Added a diagnostic-only live-scheduler probe and sparse synthetic
+duplicate-pair fixture. RTX 4090, 240 Hz desktop, Automatic sync, NVIDIA low
+latency On, NR/SR off, 2X FG. Two forward/reverse 12-second measured passes per
+setting after warmup, all 14 passed. Confirmed 60 observed / 30 kept / 30 repeated
+frames per second and approximately 30 generated submissions/s for each backend.
+
+Run medians of rolling mean arrival-to-application-Present-return delay: off
+6.27/7.25 ms; VFG Medium25.93/25.95, Low27.24/30.24, High31.93/31.94;
+DLSS29.58/32.14; ANR B15 33.78/36.52. XeSS3.16/3.23 is an earlier asynchronous
+provider handoff boundary, not comparable output latency; no overall optical
+winner claimed. VFG Medium is the provisional first choice among measured DXGI
+paths for this specific synthetic workload. Zero FG skips; one expired generated
+frame in second Medium run; High had one sampled budget flag per pass.
+
+No Elgato, controller trigger or optical timing was tested. The current B15
+package's payload hashes all remain unchanged; temporary probe removed and exact
+generated sparse fixture retired, evidence retained. Details in
+[FG_LATENCY_2026-11-13.md](FG_LATENCY_2026-11-13.md), raw evidence and summary in
+`E:/项目/Veyra/reports/fg-latency-20261113`. No production behavior, user settings,
+display mode, driver or runtime changed. No push/publication.
+
+
+## 2026-11-14 Selective upstream replay and HDR integration
+
+Imported recording/replay implementation 6061d901, replay fixes from e0aab788,
+and replay/HDR UI from 3fba2666. Preserved pre-existing uncommitted ANR work;
+no upstream ANR, scheduling/default changes, version bump, commit or push.
+Six build targets passed; replay 37/0, HDR/i18n/hotkey state passed, Quick
+175 tests/0 failures/1 skip. Actual isolated SDR recording and replay save
+passed; independent decode 118/212 distinct frames. Initial missing-DLL
+harness failure retained, corrected runtime path and UI retry passed.
+See [integration record](REPLAY_HDR_INTEGRATION_2026-11-14.md).
+
+
+## 2026-11-14 Slinky build packaging
+
+User requested a portable ZIP named Slinky build. The packager combines the
+tested replay/HDR EXE, current UI and nested shaders with verified existing B15
+runtimes; provides a separate portable profile, source ZIP and SHA256 sidecars.
+Output: E:/项目/Veyra/releases/slinky-build-20261114. Actual verification result
+and hashes: reports/slinky-build-20261114/FINAL.json under the E: artifact root.
+First cold-start check caught omitted Qt QML modules; retained failure evidence
+and rebuilt with the full deployed modules. No public upload or push.
+
+
+## 2026-11-14 Full 2.1.6 Slinky integration (supersedes the narrow 2.1.5 package)
+
+Integrated application changes through upstream 20955b5c, excluding upstream ANR
+provider integration and FG dropdown label rankings; preserved the local ANR
+adapter byte-for-byte and exact original backend-choice function. Added legacy
+local ANR preset/session compatibility for the mask-schema version collision.
+Built PE 2.1.6.0 / 2.1.6-Slinky-build. Timing/dedup, logger, preset/effect-chain,
+round-trip, VFG 683/0, ANR migration 48/0, Quick 199/0/0/1 and actual UI/replay
+checks passed. GPU ANR 133/0 and SDR/HDR exclusion masks plus DLSS passed.
+All 1693 package payloads and 88 shaders verified; minimal-PATH start passed.
+Delivery: releases/slinky-build-2.1.6-20261114 under the E: artifact root.
+Receipt: reports/slinky-216-20261114/FINAL.json. Failed attempts retained.
+Details: [2.1.6 integration](SLINKY_2.1.6_INTEGRATION_2026-11-14.md).
+No commit, push or public release; prior user profiles and delivery preserved.
+
+
+## 2026-11-14 Slinky dialog overflow and replay pause
+
+Mode-switch badges now wrap within equal-height cards; actual English bounds
+and screenshots passed at 100% and 150% DPI. Replay has a shared pause-aware
+clock for video/audio/save requests and skips paused redraws/callbacks. A
+20-second pause left frame count, duration and memory unchanged; paused,
+resumed and idle saves decoded with moving video and no pause-length gap.
+Enabling replay while paused captured nothing; normal recording also decoded.
+Replay unit checks 47/0. ANR implementation and FG labels remain unchanged.
+Output name: Veyra-2.1.6-Slinky-build-win64-portable. Details and limits:
+[dialog and replay fixes](SLINKY_DIALOG_REPLAY_FIX_2026-11-14.md).
+
+
+## 2026-11-14 AV1 and H.265 / HEVC codec implementation
+
+Retained the existing HEVC encoder and added stable H.264/HEVC/AV1 choices for
+recording/replay and export. Preserved old HEVC preferences and bool C++ calls;
+export batches and version-16 worker IPC freeze the explicit codec. AV1 uses a
+same-adapter native D3D11 NVENC compatibility transport with shared NV12/P010
+textures, GPU-only copy ordering and bounded completion events. Native D3D12
+AV1 initialized but failed the first bitstream lock on this RTX 4090/driver;
+failed attempts are retained. H.264/HEVC keep their native D3D12 path.
+
+Actual build/tests/package receipts:
+E:/Veyra-dev/Veyra/anr-artifacts/reports/video-codecs-20261114/FINAL.json
+(the existing junction to the E: artifact root).
+The reproducible script is scripts/acceptance/verify-video-codecs.py; dependency
+links, exact local paths, delivery instructions and validation limits are in
+[codec implementation](VIDEO_CODECS_2026-11-14.md). No new runtime/SDK download,
+driver change, user-profile change, commit, push or public release.
+
+One simultaneous HEVC HDR recording/replay fixture hit device removal
+0x887A0006 and process exit 0xC0000005; not claimed fixed. Separate synthetic HDR
+recording/replay and re-export passed on RTX 4090. SDR three-codec concurrent
+recording/replay, actual codec decoding and restart checks passed; the receipt
+identifies the final run and package. AMD/Intel AV1 is not implemented. Physical
+HDR display/capture hardware and long-duration stability are unverified.
+
+Final acceptance attempt 20261114-204829 passed: replay/unit 53/0;
+Qt Quick 199 tests, 0 failures/errors, 1 skip; independent decode of 18 SDR/HDR
+recording, replay, export, queued-export and Matroska files. Export outputs have
+150 decoded frames and periodic keyframes. AV1/HEVC HDR files are 10-bit with
+BT.2020 primaries/matrix and PQ transfer. Forced Media Foundation AV1 rejection
+passed without producing a final file. This does not supersede the concurrent
+HDR failure above.
+
+Local update overlay: releases/video-codecs-20261114/
+Veyra-2.1.6-Slinky-AV1-HEVC-update.zip under the E: artifact root, 4,679,092 bytes,
+195 payloads SHA-verified and ZIP CRC checked. EXE SHA256
+a5df72e1d5b21c8637f4a6288ef3067a507c9c090ffd9e81c6e18fbf8cc3830f;
+ZIP SHA256 2ded3fceeba27a6d6229b7840d52a7c8cda3b94f42e54ddacbd235075f964ab0.
+Retired eight exact-byte-verified generated raw Y4M fixtures, logical
+361,106,264 bytes; regeneration manifest fixture-retirement.json retained.
+Physical space recovery was not measured. User's original application payload
+and profiles were not replaced. Original process was no longer observed after
+the device-removal event; no user process was explicitly terminated, and a
+causal connection was not established.
+
+
+## 2026-11-14 Full Slinky AV1 / HEVC portable delivery
+
+User requested the complete Veyra-2.1.6-Slinky-build-win64-portable.zip.
+Packaged the exact codec-accepted executable with hash-verified existing private
+Slinky runtimes, Qt modules, models, licenses, UI and all built shaders. All
+1,695 payloads passed SHA256/ZIP CRC verification and isolated minimal-PATH
+portable startup passed. No new codec GPU run was needed: EXE matches the full
+codec receipt. Original packages, app folders, profiles and dependencies remain.
+
+Output: releases/slinky-av1-hevc-full-20261114 under the E: artifact root;
+portable ZIP 724,362,370 bytes, source ZIP 75,371,296 bytes, both with SHA sidecars.
+ZIP SHA256 65c3fd2b2131600ff1e4038b277434ab7ba0c637d43afc6812b707167a7f64e7.
+Receipt: reports/slinky-av1-hevc-full-20261114/FINAL.json. One assembled portable
+folder is retained as the runnable delivery; no extra extraction/test runtime
+was created. See SLINKY_AV1_FULL_BUILD_2026-11-14.md for instructions and limits.
+Concurrent HEVC HDR failure remains unresolved. No commit/push/public release.
+
+
+## 2026-11-14 ANR FG V.B16 local upgrade
+
+User-requested full ZIP staged into a separate latest 2.1.6 Slinky AV1/HEVC
+portable, preserving the existing application/shaders/UI and source archive.
+Complete upstream ANR runtime and metadata replaced together; no OptiScaler
+installation. Provider SHA matches metadata and Authenticode is Valid (Apex
+Compute, Inc.). RTX 4090 GPU 133 checks/0 failures; actual playback, backend/
+multiplier switching, seek/fullscreen, restart and 2X/4X decoded exports passed.
+Reproducible entry: scripts/acceptance/update-apex-anr-b16.py.
+Delivery: releases/anr-b16-20261114 under E: artifact root, with isolated
+user-data-anr-b16 launcher. See docs/ANR_B16_2026-11-14.md and task FINAL.json
+for identities and archive verification. Original packages/profiles and all
+pre-existing workspace changes preserved. No commit/push/public release.
+AMD/Intel, long-duration stability and physical HDR display untested; the
+donor concurrent HEVC HDR recording/replay limitation remains.
+
+用户授权公开，发行7244307/产品f46df7f、EXEbf27ebed/PE2.1.6.0。NVIDIA/AMD公开完整包与应用/网络源码、SHA256SUMS已上传，源码Release先公开，应用v2.1.6随后设Latest；服务端大小/SHA、正文、标签、匿名HTTP200/ZIP前缀、摘要GET、两QR字节/各220及四固定源码链接核验。公开包无ANR资产：作者最新Beta禁止再分发；自写适配保留，当前本机完整ANR包/用户配置不改。两公开包重新解压最小PATH播放213/221帧、无ERROR，实际UI明确ANR不可用、回放/麦克风默认关、顶部开关/HDR折叠存在。旧2.1.5正文/标签/资产与源码SHA保持，29原树指纹保护。脚本/日志/失败边界/包SHA及清理详见RELEASE_2.1.6_EXECUTION_2026-11-13.md与reports/codex-release-2.1.6-20261113/FINAL.json；仅退役本轮验证副本，公开包/对应源码/build/证据保留。最后只追加本验收文档，不改tag/二进制；未群发、未关机。
+
+
+## 2026-11-14 NVIDIA G-SYNC 程序配置入口与提交前审查
+
+全局已允许窗口/全屏但程序专用范围仍为仅全屏时，现有VRR开关不足以解释固定最高刷新的现象。新增专业显示页“检查／修复／恢复原设置”，显式后台操作仅处理当前完整路径的自定义单程序配置及两个范围ID；备份、回读、继承恢复与冲突拒绝保护原设置。原有同步、NR/SR/FG、录制、HDR及优先级逻辑不变；复用VRow/VButton/Theme，窄面板按钮自动换行，增加三语译文。显示器查询处只修正“永不修改驱动”的绝对日志措辞。
+
+提交前审查修正：未完成驱动读取时不将默认结果误判为有效配置；恢复成功但记录删除失败时允许再次清理；驱动接口与互斥量匹配后台任务的进程生命期。新增可独立运行的MSVC2022/Qt6.8.3检查与GitHub工作流，控制器通过链接期模拟驱动验证存储失败、权限失败、恢复重试及独立修改保护，不接触真实配置。
+
+本轮未执行本地编译，按用户要求将后续编译检查交由GitHub环境。当前四语离屏界面各9项、共36项通过，包含初始化无驱动调用及280/360/520宽度；相同宽度的前后界面预览无QML警告，复用原样式。翻译2867项／三语缺失0／占位符0；EngineController、PresentSink、呈现setter、录制桥接与公共样式组件无逻辑改动。前阶段同一策略头文件的62项断言和只读真实配置核对不等同于本轮完整产品构建；新增控制器测试与远端CI结果须在执行后记录。真实驱动写入／恢复与GPU性能尚未验收。
+
+当前分支codex/vrr-profile-button-20261114；实现与操作见NVIDIA_GSYNC_PROFILE_2026-11-14.md，独立验证入口tests/vrr-profile。所有本机日志、界面图、依赖与诊断记录留在任务目录，不随PR提交。提交状态以实际PR链接和后续记录为准。
+
+2026-11-14（Claude）合并PR #104/#108并处理Issue #107：分支claude/merge-pr104-108-20261114（main 20955b5），PR #108 G-SYNC配置按钮8efd5ac、PR #104其他虚拟桌面窗口捕获043615e，去掉PR #104未运行过的分支打包脚本89e75a8，无冲突，词库2874条缺失0。#107本机复现：60fps片源WGC采集关NR，同卡/跨卡（AMD核显运算）均60–61帧/秒，跨卡只增延迟（1440p约13ms），“关NR只有50多”未复现，两块NVIDIA与60Hz显示器未验证。改动：按显示路径找出驱动显示器的显卡，采集日志记gpu path，跨卡时屏幕捕获对话框提示并建议把显示器接到处理卡；不改帧路径和默认值。构建通过，QML 208/0/0，界面合同、G-SYNC策略62项、PR #108独立检查6/6通过；屏幕采集31/6，6项与改动前EXE同环境同像素失败（HDR桌面颜色检查），新增3项通过。详见docs/MERGE_PR104_PR108_ISSUE107_2026-11-14.md与reports同任务FINAL.json；仅本地，未push/未在GitHub合并或回复。
+
+2026-11-14（Claude）FSR 4 ML补帧给RX 9000用户默认启用：用户要求“让9000用户用上”。FSR 4 ML（AMD ML帧生成，SDK 2.3.0 提供方4.0.1）2.0.0起已可在RX 9000手动选择；本轮RX 9000新配置默认FSR 4 ML，不可用的已存后端优先改FSR 4 ML；ML不可用/失败时实时预览改用FSR 3.1保持2X并提示（不再关闭补帧或整套回退），导出仍不替换后端；菜单去“实验”，提示写明不可用时改用3.1且未经实卡验证。修复合同/ANR设置/界面合同、QML、FSR切换与引擎级fsr4-fallback在本机RTX 5070通过（只验证回落，ML本身未实卡运行）。详见docs/FSR4_ML_RX9000_2026-11-14.md与reports同任务FINAL.json；分支claude/fsr4-ml-rx9000-20261114未合main/未push。
+
+2026-11-14（Claude）AMD AMF FRC补帧接入：用户确认A卡视频补帧是AMD AMF FRC并要求接入。下载AMF SDK v1.5.3头文件（MIT，57文件约0.6MB）到deps/amf-sdk-1.5.3-20261114；本机核显（RDNA2 2CU，AMF运行时1.4.37）实测FRC每帧给出前后两帧正中的中间帧。新增AmdFrc后端（2X，只在AMD显卡且System32有AMF运行库时可选）：真实帧复制进AMF输入贴图→AMF自身队列插帧→队列等AMF栅栏后复制回补帧缓冲，无CPU等待；设置/预设/节点/状态/组件页/导出/词库5条同步，不改默认。详见docs/AMD_AMF_FRC_2026-11-14.md与reports同任务FINAL.json；分支claude/amf-frc-20261114叠在FSR4分支上，未合main/push。
+## 2026-11-15 采集录制与本机监听解耦
+
+用户截图反馈2.1.6关闭监听就录不到采集卡音频。对照2.1.5/6，渲染取声和采集PCM链路没改，原“不监听”实际关闭了音频输入；不把未复现的版本回归归咎于麦克风。独立codex/capture-record-audio-20261115基于main2f0e499：输入选择与本机监听拆开，captureAudioMonitor保存/启动/实时/恢复/重连生效，录制/回放仍在增益前取声，不自动选输入；三处共用开关与四语说明同步。
+
+585项构建305.9s、翻译2876/0/0；生产CaptureAudioSession零增益220块：实际输出210240样本全零，取声峰值0.25，双消费者52800/105600帧且时间戳单调。缓冲37/0、UI合同、Quick退出0（未输出项数不伪报）、四语实际开关/保存/重启及三组6个录制/回放MP4独立解码/频谱通过。测试stage先漏QtTest DLL、再漏qml-tests，失败回执保留，补齐后Quick47.17s退出0。真实Elgato/其他GPU/无输出端点未验，合成麦克风不冒充实物。执行命令、详细边界见docs/CAPTURE_RECORD_AUDIO_2026-11-15.md，所有输出E:/项目/Veyra下codex-capture-record-audio-20261115任务；最终包/源码/SHA见reports同任务FINAL。未合main/push/Release/关机。
+
+交付收尾：产品dfa2328/EXEbe83186d，完整NVIDIA ZIP725809972字节/SHA69977c0e…，精确源码ZIP/SHA256SUMS与独立手动入口齐全。1664包文件逐SHA、97原DLL、88着色器与最小PATH新配置冷启动176真实帧/0错误通过。封包首轮保护拦截PR104/108新增QML，按精确源码差异补全NvidiaVrrProfileRow/qmldir后通过，拒绝记录保留；不是忽略保护继续打包。打包与冷启动命令/失败/结果见reports同任务package.py、cold.py、PACKAGE/COLD/FINAL.json及执行文档末节。最终保留当前app/build/完整包/对应源码/必要证据，不改真实配置/主线/已发布包，不关机。
+## 2026-11-14 日落配色与经典切换（Claude，未提交）
+
+分支 claude/dusk-palette-20261114（main 20955b5）。按用户参考 GTA6 封面的要求，新增日落配色（默认）：靛紫底、日落渐变强调色、暮色背景图；设置 → 外观 → 界面配色可切回经典，经典取值与原型完全一致。Theme 令牌、VAccentFill 渐变填充、shade() 着色、make-backdrop-dusk.py 背景图、palette 偏好与 6 条词库。QML 199/0/0、界面合同 3/3、翻译 0 缺失；两套配色真实程序截图（软件与 GPU 绘制）及手动入口冒烟通过。详见 docs/DUSK_PALETTE_2026-11-14.md 与 reports/claude-dusk-palette-20261114。
+
+同日追加：日落配色下 Logo 换成用户提供的霓虹渐变像素手柄（原图存 assets/veyra-logo-dusk.webp，make-logo-dusk.py 生成同画布的 logo-dusk.png），首页/顶部栏/关于三处同位置替换，首页呼吸光改淡粉；经典仍为原白色 Logo；程序文件/任务栏图标未改。QML 199/0/0，两套配色截图核对。
+
+同日追加：用户觉得日落配色饱和度偏高，色相明度不变下调约1/4（底色/卡片/背景图×0.72按亮度保持，强调色与渐变HLS×0.8，shade偏移与首页呼吸光同步）；QML 199/0/0，前后对比图见reports同任务dusk-saturation-before-after.png。
+
+## 2026-11-15 日落首页字标、启动动画与启动音乐（Claude，未提交）
+
+用户要求日落主题下首页换成其"Veyra NR"字标（饱和度稍降），并加入场动画；随后参考其GTA6 Logo出场录屏、要求去塑料光效、拆字做视差、动效更炸，最后要求BGM随启动卡点播放一次、打开任意播放源自动暂停、角落可关声音。同一分支/工作树/build继续：make-wordmark-dusk.py生成色度×0.8字标、柔光与三层视差（尾巴边缘填色抠出、被挡处按纸片调和补画）；新DuskIntro.qml 3.26s卡BGM实测拍；新StartupMusic（Media Foundation媒体引擎纯音频）读程序目录media/startup-music.mp3，动画以音乐位置为时钟；首页右下角静音按钮与设置→外观"启动动画""启动音乐"。BGM来源/授权未知，不进Git/包，仅复制到测试stage。EXE9a27ebb7…；QML199/0/0、合同3、i18n2859、真实程序14场景（静音播放）通过，同步0–1ms。测试中BGM曾意外外放约7秒、测试窗被真实点击一次。记录见DUSK_PALETTE_2026-11-14.md末节与reports/claude-dusk-intro-20261115/FINAL.json；未合main/push/发布。
+## 2026-11-15 GitHub主页与教程入口
+
+用户要求X/YouTube作者主页与英中教程，放README顶部及Release底部。账号从现有Preferences.cpp核对为x.com/likely2002、youtube.com/@Likely7Ai；教程按用户原地址，英文保留t=324s，中文BV1KvsE6bEPw。README英/中/兼容入口三份及RELEASE_SUPPORT模板复用CREATOR_AND_TUTORIAL_LINKS块；当前v2.1.6应用/源码两Release底部同步添加。远端main有独立star-history提交、本地main另有Claude未发布功能，故从nrvideo/main独立docs分支施工，仅推文档，不携带未发布引擎改动。站点抓取受YouTube节流/X403/B站限制，不把HTTP状态冒充账号正确；主账号以用户既有程序常量、教程以本轮明确链接为准。原Release正文/资产/tag和README已归档至E:/项目/Veyra/{archives,reports}/codex-creator-links-20261115，实际远端验证与资产未变结果见FINAL.json。无程序/运行库/标签/包替换，不群发、不关机。
+
+
+## 2026-11-15 英文教程改为从头播放
+
+用户明确纠正英文教程应从零开始。移除英文YouTube链接t=324s与05:24标签，同步三份README顶部、作者/教程标准块、RELEASE_SUPPORT及当前v2.1.6应用/源码Release底部。执行：py -3.11 -X utf8 -B -I E:/项目/Veyra/reports/codex-creator-links-20261115/from-zero.py；git diff --check、远端README内容、两Release正文与原资产/标签/二维码保护检查，实际发布结果见reports/codex-creator-links-20261115/from-zero/FINAL.json。仅文档和Release正文，不携带本地main未发布改动。
+## 2026-11-15 2.1.9整合、区域可视编辑与启动音乐
+
+用户授权本地main整合并跳到2.1.9，BGM仅进运行包。隔离codex/integrate-2.1.9-20261115基于main2f0e499，原工作树HEAD/脏文件SHA与变动快照在reports/archives同任务；Claude日落81498ed、AMF/FSR4 b31d536、录音10e502e、浏览器挂起61c9f9c及nrvideo/main文档均已并入整合分支。WORKLOG冲突保留双方，Preferences保留录音监听、启动动画/音乐全部开关。暂停的四分支不并。
+
+全效果剔除持久红框、选中拖动、仅释放提交、独立显示层；音乐独立片头播放一次，媒体打开意图/手动关闭立即停止，加载前取消也不能复活。原曲SHA3005aa60…1847011字节留deps，不进源码。构建与测试命令：scripts/acceptance/build-recording-handoff.py --task codex-build-2.1.9-20261115 --root E:/项目/Veyra/worktrees/integrate-2.1.9-20261115 --label 2.1.9 --jobs 2 --option VEYRA_AMF_SDK_ROOT=E:/项目/Veyra/deps/amf-sdk-1.5.3-20261114 [本次目标]；reports同任务qa.py stage/cpu/music/mask/resize/amf、fg.py、regress.py、visual.py/verify_visual.py。实际命令参数在这些脚本和构建receipt。测试、日志、临时文件均E盘同任务目录。
+
+209/0/0 Quick、原曲115.826秒自然结束（全程静音）与四种取消、四语实际区域编辑、Windows真实鼠标窗口/全屏各拖一次及截图/14帧录制独立检查通过；XeSS2X/4X各六次WGC resize、FSR4回退/后端切换、AMF核显45/45中间帧/最大误差0.5px/debug0、全效果剔除GPU、静音PCM双消费者/回放缓冲/呈现工作线程通过。失败构建、按钮重叠与修复、运行中stage拒绝和报告解码错误保留，详见BUILD_2.1.9_2026-11-15.md。最终包/源码/main提交/冷启动及清理以reports同任务FINAL.json和收尾记录为准；不push/Release/关机。
+
+2.1.9封包收尾：main已快进08edece，产品EXE5363b83e…/PE2.1.9.0；两ZIP分别730927504与721921977字节，SHA d365cd7d…/940a2715…；源ZIP0b5dd8ac…，不含MP3/DLL/LIB/PDB。两包1687/2311文件、97/90原DLL、88递归shader、ZIP CRC/逐文件SHA通过；BGM原字节及单独manifest均已封入。NVIDIA/AMD各首页和视频四次最小PATH冷启动退出0/无错误，片头完成后音乐继续，视频入口音乐未出声就停止，分别180/183真实提交帧。冷启动首轮断言误用ended（实际finished），改报告后重跑通过；无代码变更。脚本package219.py/cold219.py/merge_main.py/finalize.py及PACKAGE/MAIN/COLD/FAILURES/CLEANUP/FINAL在reports同任务。包对应源码08edece，后续提交仅收尾记录。全程无push/Release/关机。
+## 2026-11-15 2.1.9角落静音误存永久关闭
+
+用户反馈第二次启动无音乐。manual-NVIDIA原日志14:46:18.304停止7.33秒、18.514写introMusic=false、18.515记录stopped(button)，后两次新进程无源且从0秒停止，确定为本次按钮误写长期偏好，并非曲目只允许终身播一次。codex/startup-music-session-stop-20261115基于main d9e7c11：角落按钮仅stopStartupMusicForSession，不写偏好；设置开关保留长期保存，四语提示明确区分。按已证实日志只恢复manual-NVIDIA被按钮误写的false，原文件与证据归档，未全局重置用户偏好。
+
+同一配置8次实际启动（临时停止/重启两轮、设置关/重启关、设置开/重启开）退出0/无错误、偏好true/true/true/true/false/false/true/true；提前静音。命令py -3.11 -X utf8 -B -I E:/项目/Veyra/reports/codex-startup-music-restart-20261115/{prepare.py,restart.py}，记录RESTART.json/PREFERENCE-REPAIR.json；i18n提取检查0缺失/0占位问题。源/包/缓存/日志均E盘，C++算法及运行组件不改，EXE因内嵌翻译资源重链；封包保护拦截未同步的旧QA EXE，更新后复测，不绕过校验。后续本地main、两完整包和原入口原子替换/冷启动结果见该任务FINAL.json。无push/Release/关机。
+
+启动音乐跟进交付：产品b430d98，EXE因内嵌词库资源重链c8a53dc7…，新EXE下8次实际重启与两包四次冷启动通过。NVIDIA/AMD ZIP分别730929571/721924034字节；两包及对应源码/SHA已逐文件核验后原子同步原2.1.9下载路径和app，原测试启动器仍使用已修复的manual-NVIDIA配置。全部DLL和BGM原件不变，源码无MP3/DLL。相关旧Main/词库/manifest及之前摘要/报告归档archives/codex-startup-music-restart-20261115，不覆盖其他任务或用户设置。原日志已明确的按钮false修正true；设置页明确的长期关闭未全局迁移。包校验第一次正确拦截旧QA EXE，按实际资源重链更新并重测后封包。实际部署变更文件见该任务DEPLOY.json与FINAL.json；不push/Release/关机。
+
+## 2026-11-15 公开发布2.1.9《迎接GTA6降临》
+
+用户确认测试正常并明确授权GitHub发布、全量更新公告、最新12群原图和1000字以内群公告。发行分支codex/release-2.1.9-20261115基于main ca614ef，远端main c327d45；已归档2.1.6两Release正文/标签/资产身份、本地最终交付。仅发行文档/README/二维码/包元数据，不重编译已验EXEc8a53dc7，产品b430d98生产源码不变。双语更新、条件/边界、对应源码/固定依赖文档齐全；原图复制12群，11月22日前、两QR各220、作者/英中教程保留且英文零起点；群公告669字符。
+
+脚本reports同任务init.py/docs.py/freeze.py及后续package/upload/verify，全部输出E盘同任务目录。先草稿上传与服务端SHA检查再公开/Latest，音乐不进源码，ANR禁止Beta再分发不扩大。远端验证及清理最终以FINAL.json/发行执行记录为准，不群发、不关机。

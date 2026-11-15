@@ -19,6 +19,7 @@ public:
     const std::wstring& error()const{return error_;}
 private:
     static bool parse(const std::string&,std::vector<UserPreset>&,std::wstring&);
+    static bool parseCurrent(const std::string&,std::vector<UserPreset>&,std::wstring&);
     std::string serialize()const;
     std::filesystem::path path_;
     std::vector<UserPreset> entries_;

@@ -1,5 +1,7 @@
 #pragma once
-// D3D12 NVENC session for the live recorder. It encodes NV12 (SDR) or P010
+#include "veyra/sink/VideoEncoder.h"
+// NVENC session for the live recorder. Native D3D12 for H.264/HEVC; AV1 uses
+// D3D11 shared-texture compatibility transport. It encodes NV12 (SDR) or P010
 // (HDR10) textures the caller owns: each submit names an input texture and
 // the caller's fence point after which the texture holds the frame, so NVENC
 // waits on the GPU and the caller never blocks. Bitstreams come back in
@@ -17,9 +19,12 @@ class NvencLiveEncoder {
 public:
     struct Config {
         uint32_t width=0,height=0;
-        bool hevc=false;
-        bool hdr=false;          // HEVC Main10 from P010 inputs, BT.2020 PQ signalling
+        VideoCodec codec=VideoCodec::H264;
+    bool hevc=false;
+        bool hdr=false;          // HEVC Main10 / AV1 10-bit P010, BT.2020 PQ
+        uint32_t fpsNum=0,fpsDen=1; // optional exact export rate
         uint32_t fps=60;         // rate-control frame rate
+        ExportRateControl rateControl=ExportRateControl::Vbr;
         uint32_t bitrateMbps=20; // VBR target
     };
     struct Packet {
@@ -35,7 +40,7 @@ public:
     NvencLiveEncoder& operator=(const NvencLiveEncoder&)=delete;
 
     bool open(ID3D12Device* device,const Config& config,const std::vector<ID3D12Resource*>& inputs);
-    // Annex B parameter sets (SPS/PPS, plus VPS for HEVC).
+    // Annex B parameter sets for H.264/HEVC; sequence header OBU for AV1.
     std::vector<uint8_t> headers() const;
     // Encode input `index` once `fence` reaches `value`. Fails when every
     // output buffer is still pending: take a packet first.

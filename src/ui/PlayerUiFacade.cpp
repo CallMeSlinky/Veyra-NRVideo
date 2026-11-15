@@ -109,7 +109,8 @@ PlayerUiFacade::Frame PlayerUiFacade::poll() {
     // Never reconcile a rejection older than the UI's latest accepted edit.
     const bool recoveredVfg=snapshot.rejectedRevision>=pendingFgRevision_&&
         snapshot.desired.revision==snapshot.rejectedRevision&&
-        requestedFgBackend_==veyra::engine::FrameGenerationBackend::Vfg&&
+        (requestedFgBackend_==veyra::engine::FrameGenerationBackend::Vfg||
+         requestedFgBackend_==veyra::engine::FrameGenerationBackend::AmdFrc)&&
         snapshot.desired.frameGenerationBackend==requestedFgBackend_&&
         snapshot.desired.vfgQuality==requestedVfgQuality_&&
         requestedFgMultiplier_>1&&snapshot.desired.multiplier==1&&
@@ -135,8 +136,10 @@ PlayerUiFacade::Frame PlayerUiFacade::poll() {
     return frame;
 }
 
-bool PlayerUiFacade::applySettings(const veyra::engine::EnhancementSettings& settings,
+bool PlayerUiFacade::applySettings(const veyra::engine::EnhancementSettings& savedSettings,
                                   std::optional<veyra::engine::ChainRuntimeOrder> order) {
+    auto settings=savedSettings;
+    settings.content=veyra::engine::currentContentRate(settings.content);
     uint64_t acceptedRevision=0;
     if (!engine_.requestSettings(settings, order,&acceptedRevision)) return false;
     veyra::log::info("ui-settings-request", std::format(

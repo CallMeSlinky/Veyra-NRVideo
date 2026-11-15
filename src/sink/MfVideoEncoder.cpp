@@ -227,7 +227,8 @@ private:
 
 bool MfVideoEncoder::open(gfx::D3D12DeviceContext& ctx,gfx::CommandSlotRing& ring,EnhanceGraph& graph,const EncoderConfig& config,PacketWriter writer){
     ctx_=&ctx;ring_=&ring;graph_=&graph;writer_=std::move(writer);
-    hevc_=config.hevc;bitrateMbps_=config.bitrateMbps;rateControl_=config.rateControl;
+    if(selectedVideoCodec(config.codec,config.hevc)==VideoCodec::Av1){error_=L"AV1 encoding currently requires an AV1-capable NVIDIA NVENC GPU. Select H.265 / HEVC or H.264 for Media Foundation.";return false;}
+    hevc_=selectedVideoCodec(config.codec,config.hevc)==VideoCodec::Hevc;bitrateMbps_=config.bitrateMbps;rateControl_=config.rateControl;
     drainTimeoutMs_=config.drainTimeoutMs?config.drainTimeoutMs:10000;
     fpsNum_=std::max(1u,config.fpsNum);fpsDen_=std::max(1u,config.fpsDen);
     width_=graph.workWidth();height_=graph.workHeight();
@@ -700,7 +701,8 @@ bool MfVideoEncoder::submitSample(IMFSample* sample){
 
 bool MfVideoEncoder::openLive(uint32_t width,uint32_t height,const EncoderConfig& config,PacketWriter writer){
     writer_=std::move(writer);liveTimestamps_=true;
-    hevc_=config.hevc;bitrateMbps_=config.bitrateMbps;rateControl_=config.rateControl;
+    if(selectedVideoCodec(config.codec,config.hevc)==VideoCodec::Av1){error_=L"AV1 encoding currently requires an AV1-capable NVIDIA NVENC GPU. Select H.265 / HEVC or H.264 for Media Foundation.";return false;}
+    hevc_=selectedVideoCodec(config.codec,config.hevc)==VideoCodec::Hevc;bitrateMbps_=config.bitrateMbps;rateControl_=config.rateControl;
     drainTimeoutMs_=config.drainTimeoutMs?config.drainTimeoutMs:10000;
     fpsNum_=std::max(1u,config.fpsNum);fpsDen_=std::max(1u,config.fpsDen);
     width_=width;height_=height;

@@ -61,6 +61,7 @@
 #include "veyra/ui/QmlDataDirectory.h"
 #include "veyra/ui/QmlDiskCache.h"
 #include "veyra/ui/QmlPlayerBridge.h"
+#include "veyra/ui/StartupMusic.h"
 #include "veyra/ui/ThumbnailProvider.h"
 
 using namespace veyra;
@@ -491,6 +492,8 @@ static int runApplication(int argc, char** argv, QString& restartProgram, QStrin
     wchar_t rotateTest[32]{};
     if (GetEnvironmentVariableW(L"VEYRA_TEST_LOG_ROTATE_BYTES", rotateTest, 32) > 0 && _wtoi64(rotateTest) > 0)
         rotateAtStart = rotateWhileRunning = uint64_t(_wtoi64(rotateTest));
+    if(!veyra::Logger::instance().startAsync())
+        veyra::log::warn("log", "asynchronous output unavailable; using synchronous logging");
     veyra::Logger::instance().setRotation(rotateAtStart, rotateWhileRunning);
     if (!veyra::Logger::instance().openFile(logPath.wstring(), true)) {
         logPath = logPath.parent_path() / (L"veyra-qml-" + std::to_wstring(GetCurrentProcessId()) + L".log");
@@ -746,6 +749,14 @@ static int runApplication(int argc, char** argv, QString& restartProgram, QStrin
             outcome.toStdString(), cache.digest.isEmpty() ? "none" : cache.digest.toStdString(), cache.files, cache.bytes, ms));
     }
 
+    // The 日落 startup music (StartupMusic.h): the user's file next to the program, if any.
+    // Declared before the engine, so it outlives every QML reference to it.
+    ui::StartupMusic startupMusic(QCoreApplication::applicationDirPath() + QStringLiteral("/media/startup-music.mp3"));
+    QObject::connect(&bridge, &ui::QmlPlayerBridge::mediaOpenRequested, &startupMusic, &ui::StartupMusic::pause);
+    QObject::connect(&bridge, &ui::QmlPlayerBridge::preferencesChanged, &startupMusic, [&] {
+        if (bridge.preferences().value(QStringLiteral("introMusic")).isValid()
+            && !bridge.preferences().value(QStringLiteral("introMusic")).toBool()) startupMusic.pause();
+    });
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("vySoftwareUi"), softwareUi);
     auto* thumbnails = new ui::ThumbnailProvider;
@@ -754,6 +765,7 @@ static int runApplication(int argc, char** argv, QString& restartProgram, QStrin
                      [thumbnails](const QString& path) { thumbnails->setSource(path); });
     engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine.rootContext()->setContextProperty(QStringLiteral("veyra"), &bridge);
+    engine.rootContext()->setContextProperty(QStringLiteral("vyMusic"), &startupMusic);
     bridge.setQmlEngine(&engine);   // Qt.uiLanguage drives the per-language font (Theme.qml)
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,

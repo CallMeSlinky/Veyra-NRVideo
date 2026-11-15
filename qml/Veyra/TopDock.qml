@@ -7,6 +7,7 @@
 //     tooltip; a separate indicator slides behind the selected button;
 //   * it drops in from above and retracts 450ms after the pointer leaves;
 //   * `dockPinned` keeps it open (the design uses that state for the 16:9 frame).
+// Screenshot and recording actions share the existing navigation icon row.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -17,6 +18,7 @@ Item {
     anchors.top: parent ? parent.top : undefined
     width: parent ? parent.width : 0
     height: 12 + 46 + 20
+    readonly property bool recordingSaving: !veyra.recording && !!(veyra.recordingState && veyra.recordingState.finishing)
 
     required property string currentPage
     signal requestPage(string page)
@@ -94,7 +96,7 @@ Item {
         implicitWidth: content.implicitWidth + 20
         height: 44
         radius: height / 2
-        color: "#000000"
+        color: Theme.shade(0, 0, 0)
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.1)
         // Over the picture on the cinema page: cut out of the video window.
@@ -131,12 +133,12 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: height / 2
-                    color: logoHover.hovered ? "#1A1A1F" : Qt.rgba(0.102, 0.102, 0.122, 0)
+                    color: logoHover.hovered ? Theme.shade(26, 26, 31) : Theme.shade(26, 26, 31, 0)
                     Behavior on color { ColorAnimation { duration: Theme.d(200) } }
                 }
                 Image {
                     anchors.centerIn: parent
-                    source: "logo.png"
+                    source: Theme.logoImage
                     sourceSize.width: 26
                     fillMode: Image.PreserveAspectFit
                 }
@@ -159,7 +161,7 @@ Item {
                     width: 32
                     height: 30
                     radius: 999
-                    color: "#26262D"
+                    color: Theme.shade(38, 38, 45)
                     x: {
                         let idx = 0
                         for (let i = 0; i < dockRoot.items.length; ++i)
@@ -240,6 +242,24 @@ Item {
 
             Rectangle { implicitWidth: 1; implicitHeight: 16; color: Qt.rgba(1, 1, 1, 0.14) }
 
+            CaptureIcon {
+                objectName: "dock-screenshot"
+                iconName: "camera"
+                tip: qsTr("截图")
+                enabled: veyra.hasSource
+                onClicked: veyra.takeScreenshot()
+            }
+            CaptureIcon {
+                objectName: "dock-record"
+                iconName: "video"
+                tip: veyra.recording ? qsTr("停止录制") : dockRoot.recordingSaving ? qsTr("保存中…") : qsTr("录制")
+                recording: veyra.recording
+                enabled: (veyra.hasSource || veyra.recording) && !dockRoot.recordingSaving
+                onClicked: veyra.toggleRecording("dock-button")
+            }
+
+            Rectangle { implicitWidth: 1; implicitHeight: 16; color: Qt.rgba(1, 1, 1, 0.14) }
+
             // Show / hide the cinema pill (field request 2026-10-01). Only where the pill lives.
             Item {
                 objectName: "dock-pill-toggle"
@@ -310,7 +330,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: height / 2
-                        color: whover.hovered ? (wbtn.modelData.id === "close" ? Qt.rgba(1, 0.365, 0.365, 0.22) : "#1A1A1F") : "transparent"
+                        color: whover.hovered ? (wbtn.modelData.id === "close" ? Qt.rgba(1, 0.365, 0.365, 0.22) : Theme.shade(26, 26, 31)) : "transparent"
                         Behavior on color { ColorAnimation { duration: Theme.d(200) } }
                     }
                     VIcon {
@@ -360,5 +380,60 @@ Item {
                 }
             }
         }
+    }
+    component CaptureIcon: Item {
+        id: action
+        required property string iconName
+        required property string tip
+        property bool recording: false
+        signal clicked()
+        implicitWidth: 32
+        implicitHeight: 30
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: tip
+        Accessible.onPressAction: if (enabled) clicked()
+        opacity: enabled ? 1 : 0.4
+        scale: press.pressed ? 0.86 : 1
+        Behavior on scale { NumberAnimation { duration: Theme.d(450); easing.bezierCurve: Theme.spring } }
+        Rectangle {
+            anchors.fill: parent
+            radius: height / 2
+            color: hover.hovered ? "#1A1A1F" : "transparent"
+            border.width: action.activeFocus ? 1 : 0
+            border.color: Theme.t2
+        }
+        VIcon {
+            anchors.centerIn: parent
+            name: action.iconName
+            color: "#FFFFFF"
+            opacity: hover.hovered || action.activeFocus ? 1 : 0.45
+        }
+        Rectangle {
+            visible: action.recording
+            x: parent.width - width - 3; y: 3
+            width: 6; height: 6; radius: 3
+            color: Theme.err
+        }
+        Rectangle {
+            objectName: "videoCover"
+            property real coverRadius: 7
+            readonly property bool on: hover.hovered || action.activeFocus
+            x: (parent.width - width) / 2; y: 38
+            width: tipLabel.implicitWidth + 18; height: tipLabel.implicitHeight + 10
+            radius: 7; color: Theme.popover
+            border.width: 1; border.color: Theme.stroke2
+            visible: on
+            Text {
+                id: tipLabel
+                anchors.centerIn: parent
+                text: action.tip; color: "#FFFFFF"
+                font.family: Theme.fontUi; font.pixelSize: 11
+            }
+        }
+        HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { id: press; gesturePolicy: TapHandler.WithinBounds; onTapped: action.clicked() }
+        Keys.onSpacePressed: event => { if (!event.isAutoRepeat && enabled) clicked(); event.accepted = true }
+        Keys.onReturnPressed: event => { if (!event.isAutoRepeat && enabled) clicked(); event.accepted = true }
     }
 }

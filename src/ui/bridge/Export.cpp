@@ -162,13 +162,16 @@ int QmlPlayerBridge::exportQueueCount() const { return int(std::count_if(impl_->
 int QmlPlayerBridge::exportQueueFailures() const { return int(impl_->exportQueue.queue().failures()); }
 QString QmlPlayerBridge::exportQueueFailure() const { return uiText(impl_->exportSnapshot.lastQueueFailure); }
 
-// HEVC or H.264: the engine's export entry takes this as a flag, so it is a real
-// choice with a real effect rather than a label.
+// Stable codec IDs are frozen into each export job. Retain the legacy boolean
+// property for existing callers while the UI offers H.264, HEVC and AV1.
+int QmlPlayerBridge::exportCodec() const { return int(impl_->exportCodec); }
+void QmlPlayerBridge::setExportCodec(int value) {
+    if(value<0||value>2||exportCodec()==value)return;
+    impl_->exportCodec=sink::VideoCodec(value);impl_->exportHevc=value==1;emit exportChanged();
+}
 bool QmlPlayerBridge::exportHevc() const { return impl_->exportHevc; }
 void QmlPlayerBridge::setExportHevc(bool value) {
-    if (impl_->exportHevc == value) return;
-    impl_->exportHevc = value;
-    emit exportChanged();
+    setExportCodec(value?1:0);
 }
 
 // Export bitrate: 0 means the encoder's constant-quality default, which is what

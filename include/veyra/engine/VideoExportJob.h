@@ -23,7 +23,7 @@ using ExportSegments=std::vector<std::pair<std::wstring,double>>;
 bool exportVideo(const std::wstring& input,const std::wstring& output,PlayerOptions,bool hevc,
                  std::atomic<bool>& cancel,const std::function<void(double,const std::wstring&)>& progress,
                  unsigned maxFrames=0,const std::function<bool()>& frameBoundary={},const std::function<void(const ExportCounts&)>& counts={},
-                 ExportResume* resume=nullptr,const ExportSegments& priorSegments={},unsigned resumeAttempt=0);
+                 ExportResume* resume=nullptr,const ExportSegments& priorSegments={},unsigned resumeAttempt=0,sink::VideoCodec codec=sink::VideoCodec::H264);
 // Joins export parts into `output` by copying packets: part i's timestamps move by
 // (its origin - the first part's origin). Every part must carry the same streams
 // and the same video parameter sets, otherwise nothing is written.
