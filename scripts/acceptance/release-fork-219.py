@@ -18,7 +18,7 @@ REPORT=ART/'reports/fork-release-219-20261115'
 OUT=ART/'releases/fork-release-219-20261115'
 BUILD=ART/'build/apex-anr-20261112'
 REPO='CallMeSlinky/Veyra-NRVideo'
-TAG='v2.1.9'
+TAG='v2.1.9-slinky'
 
 
 def git(*args):
@@ -226,6 +226,49 @@ def token():
     return fields['password']
 
 
+def refresh_package():
+    """Refresh provenance after release-script-only edits; reuse the tested app."""
+    previous=json.loads((REPORT/'PACKAGE.json').read_text())
+    source=git('rev-parse','HEAD').decode().strip()
+    assert not git('diff','--name-only','HEAD').strip()
+    changes=git('diff','--name-only',previous['sourceCommit'],source).decode().splitlines()
+    assert changes and all(n.startswith('scripts/') for n in changes),changes
+    for row in previous['assets']:assert sha(Path(row['path']))==row['sha256']
+    app=Path(previous['app'])
+    manifest_path=app/'package-manifest.json'
+    manifest=json.loads(manifest_path.read_text())
+    for row in manifest['files']:assert sha(app/row['path'])==row['sha256'],row['path']
+    assert sha(app/'veyra_qml_ui.exe')==previous['exeSha256']
+    manifest.update(sourceCommit=source,releaseTag=TAG)
+    write(manifest_path,manifest)
+    binary=OUT/'Veyra-2.1.9-win64-portable.zip'
+    temporary=binary.with_suffix('.zip.partial')
+    rows=manifest['files']+[dict(path='package-manifest.json',sha256=sha(manifest_path))]
+    with zipfile.ZipFile(temporary,'x',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+        for row in rows:z.write(app/row['path'],app.name+'/'+row['path'])
+    with zipfile.ZipFile(temporary) as z:
+        assert z.testzip() is None
+        for row in rows:
+            with z.open(app.name+'/'+row['path']) as stream:
+                assert hashlib.file_digest(stream,'sha256').hexdigest()==row['sha256']
+    temporary.replace(binary)
+    source_zip=OUT/'Veyra-2.1.9-source.zip';temporary=source_zip.with_suffix('.zip.partial')
+    with temporary.open('xb') as stream:
+        subprocess.run(['git','archive','--format=zip','--prefix=Veyra-2.1.9-source/',source],cwd=ROOT,stdout=stream,check=True,timeout=300)
+    with zipfile.ZipFile(temporary) as z:
+        assert z.testzip() is None
+        assert not any(PurePosixPath(n).suffix.lower() in {'.dll','.exe','.lib','.pdb','.nrx','.mp3'} for n in z.namelist())
+    temporary.replace(source_zip)
+    assets=[dict(path=str(p),name=p.name,bytes=p.stat().st_size,sha256=sha(p)) for p in (binary,source_zip)]
+    sums=OUT/'SHA256SUMS.txt';sums.write_text(''.join(r['sha256']+'  '+r['name']+'\n' for r in assets),encoding='ascii')
+    assets.append(dict(path=str(sums),name=sums.name,bytes=sums.stat().st_size,sha256=sha(sums)))
+    write(REPORT/'PACKAGE-before-tag-correction.json',previous)
+    previous.update(sourceCommit=source,assets=assets,releaseTag=TAG,
+        provenanceRefresh='Release script only; tested EXE/UI and application source are unchanged')
+    write(REPORT/'PACKAGE.json',previous)
+    print('Package provenance refreshed; tested EXE unchanged.',flush=True)
+
+
 def api(path,method='GET',data=None):
     request=urllib.request.Request('https://api.github.com/'+path,method=method,
         data=json.dumps(data).encode() if data is not None else None,
@@ -297,6 +340,6 @@ def verify():
 
 if __name__=='__main__':
     sys.stdout.reconfigure(encoding='utf-8')
-    phases={'prepare':prepare,'commit':commit_source,'package':package,'publish':publish,'verify':verify}
+    phases={'prepare':prepare,'commit':commit_source,'package':package,'refresh':refresh_package,'publish':publish,'verify':verify}
     if len(sys.argv)!=2 or sys.argv[1] not in phases:raise SystemExit('Select a supported release phase')
     phases[sys.argv[1]]()
