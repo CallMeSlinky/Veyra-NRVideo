@@ -1,5 +1,31 @@
 # 当前工作日志
 
+## 2026-11-15 CallMeSlinky fork: Veyra 2.1.9 published
+
+User confirmed the custom change list, excluded the FG-label/launcher items
+from release notes, and requested version-independent ANR installation instructions.
+Published https://github.com/CallMeSlinky/Veyra-NRVideo/releases/tag/v2.1.9-slinky
+with English/Simplified Chinese notes, portable/source ZIPs and SHA256SUMS.
+Release title and application display version are Veyra 2.1.9 / 2.1.9;
+the fork-specific tag preserves the existing upstream v2.1.9 tag.
+
+Source commit 6a24b48d907097d13d207a1a4c99b62f23d45d3d; product EXE
+42c2d7c73d8d72bf1c2f426075d9184a28e1df868959b63c9a815e1dca1cd36e.
+Build passed with two jobs. Assembled-app version/capture/codec controls and
+minimal-PATH cold start passed. Initial assembly omitted Qt's QML modules;
+the failed log is retained, donor modules were restored and checks passed.
+Portable ZIP CRC and every payload SHA256 verified; source archive is generated
+from the exact commit. GitHub server digests, Latest and anonymous downloads of
+all three assets verified. No ANR provider/models/program/config or music asset
+is bundled. Earlier codec/209 Quick/133 ANR GPU acceptance remains recorded in
+the integration reports; those tests were not falsely claimed rerun for a label change.
+
+Fork main includes upstream ancestry and the reviewed custom tree. Local main
+tracks origin/main on CallMeSlinky; original Likely7 repository remains upstream.
+No user process, installed app or existing profile was modified. Final receipt:
+E:/项目/Veyra/reports/fork-release-219-20261115/FINAL.json. This documentation
+record follows the release commit; the release tag and published assets remain fixed.
+
 ## 2026-11-03 RX7000补丁后worker退出：新日志与诊断更新
 
 用户veyra-qml(4).log与cache(1).zip表明NVAPI身份修复确实生效（m_gpuArch0x1b0），新失败是12:35之后三次worker管道中断。NGX已进入Small1920×1080网络建立，最后权重heap请求108.6MiB；不能凭末行认定显存不足或具体CUDA错误。当前只更新worker诊断：阶段/请求参数、CRT与Win32 stderr、Rust backtrace、普通未处理SEH独立记录；保持原Windows异常处理、不吞异常。算法/模型/共享GPU同步/主EXE/设置不改，附只读Windows1000/1001事件收集，不包数据库或模型。
