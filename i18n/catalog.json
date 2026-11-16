@@ -1,6 +1,20 @@
 {
  "entries": [
   {
+   "zh": "手动输入分辨率",
+   "src": "qml/CaptureSourceDialog.qml",
+   "zh-TW": "手動輸入解析度",
+   "en": "Enter a custom resolution",
+   "ja": "解像度を手動で入力"
+  },
+  {
+   "zh": "仅在点击“检查并选择”后更改上方分辨率；取消勾选只关闭编辑。尺寸须受采集卡驱动支持。",
+   "src": "qml/CaptureSourceDialog.qml",
+   "zh-TW": "僅在點擊「檢查並選擇」後變更上方解析度；取消勾選只關閉編輯。尺寸須受擷取卡驅動程式支援。",
+   "en": "Click Check and Select to change the resolution above. Unchecking only disables editing. The capture card driver must support the size.",
+   "ja": "「確認して選択」をクリックすると上の解像度が変わります。チェックを外すと編集のみ無効になります。キャプチャーカードのドライバーが対応するサイズを指定してください。"
+  },
+  {
    "zh": "\n仅观看：电脑输入已关闭，手柄由 PS5 处理。",
    "src": "src/ui/bridge/RemotePlay.cpp",
    "zh-TW": "\n僅觀看：電腦輸入已關閉，手把由 PS5 處理。",

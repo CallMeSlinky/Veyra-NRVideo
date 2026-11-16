@@ -1,6 +1,7 @@
 // capture dialog: source/settings logic is owned by this component.
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 DialogLayer {
@@ -171,12 +172,63 @@ DialogLayer {
         }
         VRow {
             label: qsTr("自定义分辨率")
-            hint: qsTr("仅接受驱动尺寸范围与步进支持的值；连接时核对实际格式")
-            RowLayout {
+            hintBelow: true
+            hint: qsTr("仅在点击“检查并选择”后更改上方分辨率；取消勾选只关闭编辑。尺寸须受采集卡驱动支持。")
+            ColumnLayout {
                 spacing: 6
                 enabled: !veyra.captureQueryBusy && veyra.captureDeviceId.length > 0
-                DialogTextField { id: customCaptureResolution; objectName: "capture-custom-resolution"; implicitWidth: 140; text: "1920x1080" }
-                VButton { text: qsTr("检查并选择"); onClicked: veyra.captureResolutionId = customCaptureResolution.text }
+                Basic.CheckBox {
+                    id: customResolutionEditing
+                    objectName: "capture-custom-resolution-enable"
+                    text: qsTr("手动输入分辨率")
+                    implicitHeight: Theme.ctlHeight
+                    focusPolicy: Qt.StrongFocus
+                    opacity: enabled ? 1 : 0.5
+                    indicator: Rectangle {
+                        x: customResolutionEditing.leftPadding
+                        y: (customResolutionEditing.height - height) / 2
+                        implicitWidth: 17; implicitHeight: 17; radius: 4
+                        color: customResolutionEditing.checked ? Theme.accent : Theme.card2
+                        border.color: customResolutionEditing.activeFocus ? Theme.accent
+                                      : customResolutionEditing.checked ? color : Theme.stroke2
+                        border.width: customResolutionEditing.activeFocus ? 2 : 1
+                        Text { anchors.centerIn: parent; text: "✓"; visible: customResolutionEditing.checked; color: Theme.accentInk; font.pixelSize: 12 }
+                    }
+                    contentItem: Text {
+                        text: customResolutionEditing.text
+                        leftPadding: customResolutionEditing.indicator.width + 8
+                        color: Theme.t2; font.family: Theme.fontUi; font.pixelSize: Theme.fsBody
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    onToggled: {
+                        if (checked) customCaptureResolution.text = veyra.captureResolutionId
+                    }
+                }
+                RowLayout {
+                    spacing: 6
+                    enabled: customResolutionEditing.checked
+                    DialogTextField {
+                        id: customCaptureResolution
+                        objectName: "capture-custom-resolution"
+                        implicitWidth: 140
+                        placeholder: "1920x1080"
+                        opacity: enabled ? 1 : 0.4
+                        Accessible.name: qsTr("自定义分辨率")
+                    }
+                    VButton {
+                        objectName: "capture-custom-resolution-apply"
+                        text: qsTr("检查并选择")
+                        enabled: customCaptureResolution.text.trim().length > 0
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: text
+                        border.color: activeFocus ? Theme.accent : Theme.stroke2
+                        Keys.onReturnPressed: clicked()
+                        Keys.onEnterPressed: clicked()
+                        Keys.onSpacePressed: clicked()
+                        onClicked: veyra.captureResolutionId = customCaptureResolution.text
+                    }
+                }
             }
         }
         VRow {

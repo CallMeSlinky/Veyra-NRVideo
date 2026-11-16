@@ -1,5 +1,33 @@
 # 当前工作日志
 
+## 2026-11-16 Capture custom-resolution editing
+
+Added an unchecked "Enter a custom resolution" checkbox using the existing
+theme. The input and Check and Select action are disabled until editing is
+enabled; enabling copies the selected resolution into the draft. The old
+1920x1080 value is now an example placeholder. Typing and unchecking leave
+the selected capture format unchanged; applying retains driver validation.
+Added explanatory copy in all four languages and keyboard support for the
+checkbox and apply action.
+
+Fresh application/Quick/i18n build passed in
+`build/capture-resolution-20261116`; the previous build cache referenced a
+removed source location and its initial configure failed. Translation extraction
+has zero missing entries/placeholder errors. Device-free interaction checks
+passed, with English/Chinese screenshots inspected; full Quick regression:
+208 passed, 0 failed, 1 skipped. Evidence is in
+`logs/capture-resolution-20261116`. No physical capture device was opened.
+The running portable application and user profile were not replaced.
+
+User subsequently requested a portable ZIP and local Git commit. Packaging is
+reproducible with `scripts/acceptance/package-capture-resolution.py`, using the
+SHA-verified published 2.1.9 ZIP as runtime donor and the fresh Release EXE.
+The output is `build/capture-resolution-20261116/portable`, with corresponding
+source ZIP and SHA256SUMS. Packaging checks the assembled English dialog,
+isolated minimal-PATH startup, ZIP CRCs and all payload hashes. Actual completion
+and identities are recorded in `logs/capture-resolution-20261116/portable/FINAL.json`.
+This is a local 2.1.9 revision; it does not update the public release.
+
 ## 2026-11-15 CallMeSlinky fork: Veyra 2.1.9 published
 
 User confirmed the custom change list, excluded the FG-label/launcher items
