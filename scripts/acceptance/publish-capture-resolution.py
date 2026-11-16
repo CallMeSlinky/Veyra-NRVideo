@@ -42,7 +42,11 @@ def preflight():
     with zipfile.ZipFile(package['sourceZip']) as z:
         assert z.testzip() is None
         entry = next(n for n in z.namelist() if n.endswith('/qml/Veyra/CaptureSourceDialog.qml'))
-        assert z.read(entry) == subprocess.check_output(['git', 'show', package['sourceCommit']+':qml/Veyra/CaptureSourceDialog.qml'], cwd=ROOT)
+        archived = z.read(entry)
+        committed = subprocess.check_output(['git', 'show', package['sourceCommit']+':qml/Veyra/CaptureSourceDialog.qml'], cwd=ROOT)
+        # git archive applies this Windows checkout's CRLF conversion; git show
+        # returns the repository's LF blob. Normalize only that transport change.
+        assert archived.replace(b'\r\n', b'\n') == committed.replace(b'\r\n', b'\n')
     sums = dict((line.split()[1], line.split()[0]) for line in (OUT/'SHA256SUMS.txt').read_text().splitlines())
     assets = []
     for name in ('Veyra-2.1.9-win64-portable.zip', 'Veyra-2.1.9-source.zip', 'SHA256SUMS.txt'):
