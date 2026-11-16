@@ -2,6 +2,16 @@
 
 ## 2026-11-16 Capture custom-resolution editing
 
+User subsequently authorized GitHub publication. The prepared release is
+`v2.1.9-slinky-r2` on CallMeSlinky/Veyra-NRVideo, retaining the prior release.
+It publishes the exact verified portable/source/checksum files with the standard
+filenames. Product tag/source commit remains `b4407610`; later main commits
+contain only packaging scripts and documentation. Release notes are in
+`docs/FORK_RELEASE_2.1.9_R2.md`; execution is implemented by
+`scripts/acceptance/publish-capture-resolution.py`. Actual publication and
+anonymous-download verification are recorded in
+`logs/capture-resolution-20261116/github/FINAL.json`.
+
 Added an unchecked "Enter a custom resolution" checkbox using the existing
 theme. The input and Check and Select action are disabled until editing is
 enabled; enabling copies the selected resolution into the draft. The old
