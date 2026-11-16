@@ -12,7 +12,7 @@ BUILD = ROOT / 'build/capture-resolution-20261116'
 OUT = BUILD / 'portable'
 REPORT = ROOT / 'logs/capture-resolution-20261116/portable'
 DONOR = Path('E:/Veyra-dev/Veyra/anr-artifacts/releases/fork-release-219-20261115/Veyra-2.1.9-win64-portable.zip')
-APP = OUT / 'Veyra-2.1.9-capture-resolution-win64-portable'
+APP = OUT / 'Veyra-2.1.9-win64-portable'
 
 
 def sha(path):
@@ -131,7 +131,7 @@ Item {
         for row in rows:
             with z.open(APP.name+'/'+row['path']) as stream:
                 assert hashlib.file_digest(stream, 'sha256').hexdigest() == row['sha256'], row['path']
-    source_zip = OUT/'Veyra-2.1.9-capture-resolution-source.zip'
+    source_zip = OUT/'Veyra-2.1.9-source.zip'
     with source_zip.open('xb') as stream:
         subprocess.run(['git', 'archive', '--format=zip', '--prefix=Veyra-source/', commit], cwd=ROOT, stdout=stream, check=True, timeout=60)
     with zipfile.ZipFile(source_zip) as z:

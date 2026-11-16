@@ -27,6 +27,9 @@ source ZIP and SHA256SUMS. Packaging checks the assembled English dialog,
 isolated minimal-PATH startup, ZIP CRCs and all payload hashes. Actual completion
 and identities are recorded in `logs/capture-resolution-20261116/portable/FINAL.json`.
 This is a local 2.1.9 revision; it does not update the public release.
+The user requested the standard output name: `Veyra-2.1.9-win64-portable.zip`,
+with `Veyra-2.1.9-win64-portable` as the ZIP's top-level folder. Packaging now
+retains those names; the corresponding source ZIP is `Veyra-2.1.9-source.zip`.
 
 ## 2026-11-15 CallMeSlinky fork: Veyra 2.1.9 published
 
