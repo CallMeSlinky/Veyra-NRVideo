@@ -19,7 +19,7 @@
 </p>
 <!-- veyra-creator-and-tutorials:end -->
 
-<p align="center"><img src="assets/veyra-logo-dusk.webp" alt="Veyra" width="160"></p>
+<p align="center"><img src="assets/veyra-wordmark-sun.gif" alt="Veyra NR · 透明字标与太阳动效" width="480"></p>
 
 <p align="center">
   <a href="https://github.com/Likely7/Veyra-NRVideo/blob/main/assets/veyra-2.0.0-promo.mp4">
@@ -227,7 +227,7 @@ Veyra 原有代码 GPL-3.0；含 Chiaki 串流的组合程序同时适用 AGPL-3
 <p align="center">
   <img src="https://raw.githubusercontent.com/Likely7/Veyra-NRVideo/v1.4.0/docs/images/1.4.0/donate-wechat.jpg" alt="微信赞助" width="220">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="https://raw.githubusercontent.com/Likely7/Veyra-NRVideo/main/docs/images/community/group-12-20261115.png" alt="Veyra 交流群 12" width="220">
+  <img src="https://raw.githubusercontent.com/Likely7/Veyra-NRVideo/main/docs/images/community/group-13-20261116.png" alt="Veyra 交流群 13" width="220">
 </p>
 
-左：微信赞助（自愿，不影响功能）；右：交流群 12。群码按图片标注于 **2026-11-22 前**有效，过期请查看仓库更新。
+左：微信赞助（自愿，不影响功能）；右：交流群 13。群码按图片标注于 **2026-11-23 前**有效，过期请查看仓库更新。
