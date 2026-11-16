@@ -3,6 +3,13 @@
 ## 2026-11-16 Capture custom-resolution editing
 
 User subsequently authorized GitHub publication. The prepared release is
+now published and verified as Latest at
+https://github.com/CallMeSlinky/Veyra-NRVideo/releases/tag/v2.1.9-slinky-r2.
+GitHub sizes/digests and anonymous downloads of all three assets matched;
+portable SHA256 is `b07f46878d025eab9585e6e42e6c1b1640952878c2ca666df3ebef73e61a8166`.
+The first preflight rejected Git archive's CRLF conversion; comparing the same
+source after line-ending normalization passed before any public mutation.
+The release is
 `v2.1.9-slinky-r2` on CallMeSlinky/Veyra-NRVideo, retaining the prior release.
 It publishes the exact verified portable/source/checksum files with the standard
 filenames. Product tag/source commit remains `b4407610`; later main commits

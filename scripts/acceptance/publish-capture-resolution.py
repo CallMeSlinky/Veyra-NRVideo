@@ -129,7 +129,8 @@ def verify():
     assert not release['draft'] and not release['prerelease']
     assert helper.api(f'repos/{REPO}/releases/latest')['id'] == release['id']
     assert helper.api(f'repos/{REPO}/releases/tags/v2.1.9-slinky')['id'] == 446437559
-    assert git('ls-remote', 'origin', 'refs/heads/main').split()[0] == package['mainCommit']
+    remote_main = git('ls-remote', 'origin', 'refs/heads/main').split()[0]
+    subprocess.run(['git', 'merge-base', '--is-ancestor', package['mainCommit'], remote_main], cwd=ROOT, check=True)
     assert git('ls-remote', 'origin', 'refs/tags/'+TAG+'^{}').split()[0] == package['sourceCommit']
     downloads = []
     for row in package['assets']:
